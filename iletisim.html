@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="tr"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>İletişim - Zeus Diş Kliniği</title>
+<link rel="stylesheet" href="style.css"></head><body>
+
+<nav class="nav"><div class="nav-inner">
+  <a href="index.html" class="logo"><div class="logo-icon">⚡</div><div class="logo-text">ZEUS<br><small style="font-size:.7rem;color:var(--text-light)">Diş Kliniği</small></div></a>
+  <ul class="nav-links">
+    <li><a href="index.html">Anasayfa</a></li>
+    <li><a href="hizmetler.html">Hizmetler</a></li>
+    <li><a href="hakkimizda.html">Hakkımızda</a></li>
+    <li><a href="iletisim.html" class="active">İletişim</a></li>
+    <li><a href="randevu.html" class="btn btn-primary">Randevu Al</a></li>
+  </ul>
+  <button class="menu-toggle">☰</button>
+</div></nav>
+
+<section>
+  <div class="section-inner">
+    <div class="section-tag">— İletişim</div>
+    <h2 class="section-title">Bize Ulaşın</h2>
+    <div class="contact-grid" style="margin-top:2rem">
+      <div class="contact-info">
+        <div class="contact-item"><div class="icon">📍</div><div><strong>Adres</strong><br><small>Bağdat Caddesi No: 142, Kadıköy, İstanbul</small></div></div>
+        <div class="contact-item"><div class="icon">📞</div><div><strong>Telefon</strong><br><small>+90 (212) 555 00 00</small></div></div>
+        <div class="contact-item"><div class="icon">✉️</div><div><strong>E-posta</strong><br><small>info@zeusdis.com</small></div></div>
+        <div class="contact-item"><div class="icon">🕐</div><div><strong>Çalışma Saatleri</strong><br><small>Hafta içi 09:00-19:00<br>Cumartesi 09:00-15:00</small></div></div>
+      </div>
+      <div class="form-box">
+        <h3>Mesaj Gönder</h3>
+        <form id="contactForm">
+          <div class="form-row">
+            <div class="form-group"><label>Ad Soyad</label><input type="text" required></div>
+            <div class="form-group"><label>Telefon</label><input type="tel" required></div>
+          </div>
+          <div class="form-group"><label>E-posta</label><input type="email" required></div>
+          <div class="form-group"><label>Mesajınız</label><textarea rows="5"></textarea></div>
+          <button type="submit" class="btn btn-primary">Mesaj Gönder</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div id="footer"></div>
+<script src="script.js"></script>
+<script>
+document.getElementById('footer').innerHTML = renderFooter();
+document.getElementById('contactForm').onsubmit = e => {
+  e.preventDefault();
+  toast('Mesajınız alındı, en kısa sürede dönüş yapacağız!');
+  e.target.reset();
+};
+</script>
+</body></html>
