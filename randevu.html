@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="tr"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Randevu Al - Zeus Diş Kliniği</title>
+<link rel="stylesheet" href="style.css"></head><body>
+
+<nav class="nav"><div class="nav-inner">
+  <a href="index.html" class="logo"><div class="logo-icon">⚡</div><div class="logo-text">ZEUS<br><small style="font-size:.7rem;color:var(--text-light)">Diş Kliniği</small></div></a>
+  <ul class="nav-links">
+    <li><a href="index.html">Anasayfa</a></li>
+    <li><a href="hizmetler.html">Hizmetler</a></li>
+    <li><a href="hakkimizda.html">Hakkımızda</a></li>
+    <li><a href="iletisim.html">İletişim</a></li>
+    <li><a href="randevu.html" class="btn btn-primary">Randevu Al</a></li>
+  </ul>
+  <button class="menu-toggle">☰</button>
+</div></nav>
+
+<section>
+  <div class="section-inner" style="max-width:800px">
+    <div class="section-tag">— Randevu</div>
+    <h2 class="section-title">Hemen Başlayalım</h2>
+    <p class="section-desc">Formu doldurun, uzman ekibimiz en kısa sürede sizinle iletişime geçsin.</p>
+    
+    <div class="form-box">
+      <form id="appForm">
+        <div class="form-row">
+          <div class="form-group"><label>Ad *</label><input type="text" name="firstName" required></div>
+          <div class="form-group"><label>Soyad *</label><input type="text" name="lastName" required></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Telefon *</label><input type="tel" name="phone" required></div>
+          <div class="form-group"><label>E-posta *</label><input type="email" name="email" required></div>
+        </div>
+        <div class="form-group"><label>Hizmet *</label>
+          <select name="service" id="svcSelect" required><option value="">Seçiniz</option></select>
+        </div>
+        <div class="form-group"><label>Doktor (Opsiyonel)</label>
+          <select name="doctor" id="docSelect"><option value="">Farketmez</option></select>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Tarih *</label><input type="date" name="date" id="dateInput" required></div>
+          <div class="form-group"><label>Saat *</label>
+            <select name="time" required>
+              <option value="">Seçiniz</option>
+              <option>09:00</option><option>09:30</option><option>10:00</option><option>10:30</option>
+              <option>11:00</option><option>11:30</option><option>13:00</option><option>13:30</option>
+              <option>14:00</option><option>14:30</option><option>15:00</option><option>15:30</option>
+              <option>16:00</option><option>16:30</option><option>17:00</option><option>17:30</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group"><label>Not (İsteğe bağlı)</label><textarea name="note" rows="3"></textarea></div>
+        <button type="submit" class="btn btn-primary">Randevu Talebini Gönder</button>
+      </form>
+    </div>
+  </div>
+</section>
+
+<div id="footer"></div>
+<script src="script.js"></script>
+<script>
+document.getElementById('footer').innerHTML = renderFooter();
+
+// Select doldurma
+const svcSel = document.getElementById('svcSelect');
+DB.get('services').forEach(s => {
+  const o = document.createElement('option'); o.value = s; o.textContent = s; svcSel.appendChild(o);
+});
+const docSel = document.getElementById('docSelect');
+DB.get('doctors').forEach(d => {
+  const o = document.createElement('option'); o.value = d.name; o.textContent = `${d.name} (${d.branch})`; docSel.appendChild(o);
+});
+
+// Bugünden önce seçilemesin
+document.getElementById('dateInput').min = new Date().toISOString().split('T')[0];
+
+document.getElementById('appForm').onsubmit = e => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const data = Object.fromEntries(fd.entries());
+  createAppointment(data);
+  toast('Randevunuz alındı! E-posta onayı gönderildi.');
+  e.target.reset();
+};
+</script>
+</body></html>
