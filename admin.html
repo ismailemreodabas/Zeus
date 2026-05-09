@@ -1,343 +1,826 @@
-/* Zeus Diş Kliniği - Gerçek Bildirim Sistemi */
+<!DOCTYPE html>
+<html lang="tr"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin Paneli - Zeus</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.5rem}
+  .kpi{background:#fff;padding:1.5rem;border-radius:16px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+  .kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:4px;background:var(--primary)}
+  .kpi.accent::before{background:var(--accent)}
+  .kpi.success::before{background:var(--success)}
+  .kpi.danger::before{background:var(--danger)}
+  .kpi-label{font-size:.8rem;color:var(--text-light);text-transform:uppercase;letter-spacing:1px}
+  .kpi-value{font-size:2rem;font-weight:700;margin:.3rem 0}
+  .kpi-change{font-size:.85rem;color:var(--success)}
+  .kpi-change.down{color:var(--danger)}
+  .chart-row{display:grid;grid-template-columns:2fr 1fr;gap:1rem;margin-bottom:1.5rem}
+  .chart-box{background:#fff;padding:1.5rem;border-radius:16px;box-shadow:var(--shadow)}
+  .chart-box h3{margin-bottom:1rem}
+  .calendar{background:#fff;border-radius:16px;padding:1.5rem;box-shadow:var(--shadow)}
+  .calendar-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:1rem}
+  .cal-head{text-align:center;font-weight:600;font-size:.8rem;color:var(--text-light);padding:.5rem}
+  .cal-day{aspect-ratio:1;background:#f7fafc;border-radius:8px;padding:.5rem;cursor:pointer;position:relative;font-size:.85rem;transition:.2s}
+  .cal-day:hover{background:var(--primary-light)}
+  .cal-day.has-app{background:var(--primary-light);border:2px solid var(--primary);font-weight:600}
+  .cal-day.today{background:var(--accent);color:#fff;font-weight:700}
+  .cal-day.empty{background:transparent;cursor:default}
+  .cal-count{position:absolute;bottom:4px;right:4px;background:var(--primary);color:#fff;font-size:.65rem;border-radius:10px;padding:1px 6px}
+  .filter-bar{display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap;align-items:center}
+  .filter-bar input,.filter-bar select{padding:.6rem 1rem;border:1px solid var(--border);border-radius:10px;font-family:inherit}
+  .settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem}
+  .setting-card{background:#fff;padding:1.5rem;border-radius:16px;box-shadow:var(--shadow)}
+  .status-ok{color:var(--success);font-weight:600}
+  .status-bad{color:var(--danger);font-weight:600}
+  .quick-actions{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem}
+  .message-panel{background:#fff;border-radius:16px;padding:1.5rem;box-shadow:var(--shadow);margin-top:1rem}
+  @media(max-width:900px){.kpi-grid{grid-template-columns:1fr 1fr}.chart-row,.settings-grid{grid-template-columns:1fr}}
+  @media(max-width:600px){.kpi-grid{grid-template-columns:1fr}}
+</style>
+</head><body>
 
-// ============================================
-// 🔧 AYAR PANELİ - BURAYA KENDİ BİLGİLERİNİZİ YAZIN
-// ============================================
-const CONFIG = {
-  // Admin bilgileri
-  ADMIN_EMAIL: 'ismailemreodabas@gmail.com',
-  ADMIN_PHONE: '905510708862', // başında 90 olmalı, 0 olmadan
-  ADMIN_NAME: 'İsmail Emre Odabaş',
+<div class="panel-wrapper">
+  <aside class="sidebar">
+    <div class="logo"><div class="logo-icon" style="background:linear-gradient(135deg,#e57878,#f4c56a)">👑</div><div class="logo-text">ZEUS<br><small style="font-size:.7rem">Admin</small></div></div>
+    <ul class="sidebar-menu">
+      <li><a href="#" class="active" data-view="dashboard">📊 Dashboard</a></li>
+      <li><a href="#" data-view="appointments">📅 Randevular</a></li>
+      <li><a href="#" data-view="calendar">🗓️ Takvim</a></li>
+      <li><a href="#" data-view="patients">👥 Hastalar</a></li>
+      <li><a href="#" data-view="doctors">🩺 Doktorlar</a></li>
+      <li><a href="#" data-view="services">💎 Hizmetler</a></li>
+      <li><a href="#" data-view="staff">🧑‍💼 Personel</a></li>
+      <li><a href="#" data-view="messaging">💬 Mesaj Gönder</a></li>
+      <li><a href="#" data-view="emails">✉️ E-posta Log</a></li>
+      <li><a href="#" data-view="whatsapp">📱 WhatsApp Log</a></li>
+      <li><a href="#" data-view="settings">⚙️ Ayarlar</a></li>
+      <li><a href="#" onclick="logout();return false">🚪 Çıkış</a></li>
+    </ul>
+  </aside>
   
-  // EmailJS Ayarları (emailjs.com'dan alın)
-  EMAILJS_PUBLIC_KEY: 'BURAYA_PUBLIC_KEY_YAZIN',  // örn: 'aBcDeFgH123'
-  EMAILJS_SERVICE_ID: 'BURAYA_SERVICE_ID_YAZIN',  // örn: 'service_abc123'
-  EMAILJS_TEMPLATE_ADMIN: 'BURAYA_TEMPLATE_ID_YAZIN', // admin'e gelen mail
-  EMAILJS_TEMPLATE_PATIENT: 'BURAYA_TEMPLATE_ID_YAZIN', // hastaya gelen mail (opsiyonel - aynısını kullanabilirsiniz)
-  
-  // CallMeBot WhatsApp (callmebot.com'dan alın)
-  WHATSAPP_API_KEY: 'BURAYA_WHATSAPP_KEY_YAZIN', // örn: '1234567'
-  
-  // Aktif/Pasif
-  ENABLE_EMAIL: true,
-  ENABLE_WHATSAPP: true,
-};
-
-// EmailJS SDK'sını yükle
-(function loadEmailJS(){
-  if (window.emailjs) return;
-  const s = document.createElement('script');
-  s.src = 'https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js';
-  s.onload = () => {
-    if (CONFIG.EMAILJS_PUBLIC_KEY && !CONFIG.EMAILJS_PUBLIC_KEY.includes('BURAYA')) {
-      window.emailjs.init({ publicKey: CONFIG.EMAILJS_PUBLIC_KEY });
-    }
-  };
-  document.head.appendChild(s);
-})();
-
-// ========= VERİ KATMANI =========
-const DB = {
-  get(key, def=[]) { try{return JSON.parse(localStorage.getItem('zeus_'+key))??def}catch(e){return def} },
-  set(key, val) { localStorage.setItem('zeus_'+key, JSON.stringify(val)) },
-  push(key, item) { const arr = this.get(key); arr.push(item); this.set(key,arr); return item }
-};
-
-function initDB() {
-  if (!localStorage.getItem('zeus_init')) {
-    DB.set('doctors', [
-      {id:1, name:'Dr. Elif Yılmaz', branch:'İmplantoloji', phone:'+90 532 111 1111', email:'elif@zeus.com'},
-      {id:2, name:'Dr. Ahmet Kara', branch:'Ortodonti', phone:'+90 532 222 2222', email:'ahmet@zeus.com'},
-      {id:3, name:'Dr. Selin Demir', branch:'Estetik Diş Hekimliği', phone:'+90 532 333 3333', email:'selin@zeus.com'},
-      {id:4, name:'Dr. Mert Aslan', branch:'Pedodonti', phone:'+90 532 444 4444', email:'mert@zeus.com'}
-    ]);
-    DB.set('staff', [
-      {id:1, name:'İsmail Emre Odabaş', email:'ismailemreodabas@gmail.com', password:'admin123', role:'admin'},
-      {id:2, name:'Ayşe Sekreter', email:'ayse@zeus.com', password:'1234', role:'staff'}
-    ]);
-    DB.set('services', [
-      {name:'İmplant Tedavisi', price:15000, duration:60},
-      {name:'Diş Beyazlatma', price:3500, duration:45},
-      {name:'Porselen Kaplama', price:8000, duration:90},
-      {name:'Ortodonti', price:25000, duration:30},
-      {name:'Diş Eti Tedavisi', price:2500, duration:45},
-      {name:'Çocuk Diş Hekimliği', price:1500, duration:30},
-      {name:'Genel Muayene', price:500, duration:20}
-    ]);
-    DB.set('appointments', []);
-    DB.set('notifications', []);
-    DB.set('messages', []);
-    localStorage.setItem('zeus_init','1');
-  }
-  // Migration: eski services formatı string ise çevir
-  const svc = DB.get('services');
-  if (svc.length && typeof svc[0] === 'string') {
-    DB.set('services', svc.map(s => ({name:s, price:1000, duration:30})));
-  }
-}
-initDB();
-
-// ========= GERÇEK E-POSTA GÖNDERME =========
-async function sendRealEmail(templateId, params) {
-  if (!CONFIG.ENABLE_EMAIL || CONFIG.EMAILJS_PUBLIC_KEY.includes('BURAYA')) {
-    console.warn('⚠️ EmailJS ayarlanmamış, e-posta gönderilmedi');
-    logEmail(params.to_email, params.subject || 'Test', JSON.stringify(params), 'SIMULATED');
-    return false;
-  }
-  if (!window.emailjs) {
-    console.warn('⚠️ EmailJS yüklenmedi, 1 sn bekleniyor...');
-    await new Promise(r => setTimeout(r, 1500));
-  }
-  try {
-    const res = await window.emailjs.send(CONFIG.EMAILJS_SERVICE_ID, templateId, params);
-    console.log('✅ E-posta gönderildi:', res);
-    logEmail(params.to_email || CONFIG.ADMIN_EMAIL, params.subject || 'Bildirim', JSON.stringify(params), 'SENT');
-    return true;
-  } catch (err) {
-    console.error('❌ E-posta hatası:', err);
-    logEmail(params.to_email || CONFIG.ADMIN_EMAIL, params.subject || 'Bildirim', JSON.stringify(params), 'FAILED: '+err.text);
-    return false;
-  }
-}
-
-function logEmail(to, subject, body, status) {
-  const logs = DB.get('email_log');
-  logs.push({to, subject, body, status, sentAt: new Date().toISOString()});
-  DB.set('email_log', logs);
-}
-
-// ========= GERÇEK WHATSAPP GÖNDERME (CallMeBot) =========
-async function sendWhatsApp(phone, message) {
-  if (!CONFIG.ENABLE_WHATSAPP || CONFIG.WHATSAPP_API_KEY.includes('BURAYA')) {
-    console.warn('⚠️ CallMeBot ayarlanmamış');
-    logWhatsApp(phone, message, 'SIMULATED');
-    return false;
-  }
-  const url = `https://api.callmebot.com/whatsapp.php?phone=${phone}&text=${encodeURIComponent(message)}&apikey=${CONFIG.WHATSAPP_API_KEY}`;
-  try {
-    // CallMeBot CORS hatası verebilir, o yüzden no-cors mod
-    await fetch(url, { mode: 'no-cors' });
-    console.log('✅ WhatsApp gönderildi:', phone);
-    logWhatsApp(phone, message, 'SENT');
-    return true;
-  } catch (err) {
-    console.error('❌ WhatsApp hatası:', err);
-    logWhatsApp(phone, message, 'FAILED: '+err.message);
-    return false;
-  }
-}
-
-function logWhatsApp(to, message, status) {
-  const logs = DB.get('whatsapp_log', []);
-  logs.push({to, message, status, sentAt: new Date().toISOString()});
-  DB.set('whatsapp_log', logs);
-}
-
-// ========= RANDEVU OLUŞTURMA + TÜM BİLDİRİMLER =========
-async function createAppointment(data) {
-  const app = {
-    id: Date.now(),
-    ...data,
-    status: 'pending',
-    createdAt: new Date().toISOString()
-  };
-  DB.push('appointments', app);
-  
-  // Panel bildirimi
-  DB.push('notifications', {
-    id: Date.now(),
-    type: 'new_appointment',
-    title: '🔔 Yeni Randevu Talebi',
-    message: `${data.firstName} ${data.lastName} - ${data.service} (${data.date} ${data.time})`,
-    appointmentId: app.id,
-    read: false,
-    createdAt: new Date().toISOString()
-  });
-  
-  // Tarayıcı bildirimi
-  sendBrowserNotification('🔔 Yeni Randevu Talebi', 
-    `${data.firstName} ${data.lastName} - ${data.date} ${data.time}`);
-  
-  // 📧 ADMIN'E E-POSTA
-  const adminEmailParams = {
-    to_email: CONFIG.ADMIN_EMAIL,
-    to_name: CONFIG.ADMIN_NAME,
-    subject: `🦷 Yeni Randevu: ${data.firstName} ${data.lastName}`,
-    patient_name: `${data.firstName} ${data.lastName}`,
-    patient_phone: data.phone,
-    patient_email: data.email,
-    service: data.service,
-    doctor: data.doctor || 'Belirtilmemiş',
-    date: data.date,
-    time: data.time,
-    note: data.note || 'Not yok',
-    created_at: new Date().toLocaleString('tr-TR')
-  };
-  sendRealEmail(CONFIG.EMAILJS_TEMPLATE_ADMIN, adminEmailParams);
-  
-  // 💬 ADMIN'E WHATSAPP
-  const whatsappMsg = 
-`🦷 *ZEUS - Yeni Randevu*
-
-👤 *Hasta:* ${data.firstName} ${data.lastName}
-📞 *Telefon:* ${data.phone}
-✉️ *E-posta:* ${data.email}
-💎 *Hizmet:* ${data.service}
-🩺 *Doktor:* ${data.doctor || 'Farketmez'}
-📅 *Tarih:* ${data.date} ${data.time}
-📝 *Not:* ${data.note || '-'}
-
-_Panel: admin.html_`;
-  sendWhatsApp(CONFIG.ADMIN_PHONE, whatsappMsg);
-  
-  // 📧 HASTAYA ONAY E-POSTASI
-  if (CONFIG.EMAILJS_TEMPLATE_PATIENT && !CONFIG.EMAILJS_TEMPLATE_PATIENT.includes('BURAYA')) {
-    sendRealEmail(CONFIG.EMAILJS_TEMPLATE_PATIENT, {
-      to_email: data.email,
-      to_name: `${data.firstName} ${data.lastName}`,
-      subject: 'Zeus Diş Kliniği - Randevu Talebiniz Alındı',
-      patient_name: `${data.firstName} ${data.lastName}`,
-      service: data.service,
-      date: data.date,
-      time: data.time,
-      doctor: data.doctor || 'Atanacak',
-      note: 'Randevunuz en kısa sürede onaylanacaktır.'
-    });
-  }
-  
-  return app;
-}
-
-// ========= RANDEVU DURUM GÜNCELLEME + BİLDİRİM =========
-async function updateAppointmentStatus(id, newStatus) {
-  const apps = DB.get('appointments');
-  const a = apps.find(x => x.id === id);
-  if (!a) return;
-  a.status = newStatus;
-  DB.set('appointments', apps);
-  
-  const statusLabels = {confirmed:'onaylandı ✅', completed:'tamamlandı 🎉', cancelled:'iptal edildi ❌', pending:'bekleniyor ⏳'};
-  
-  // Hastaya e-posta
-  if (CONFIG.EMAILJS_TEMPLATE_PATIENT && !CONFIG.EMAILJS_TEMPLATE_PATIENT.includes('BURAYA')) {
-    sendRealEmail(CONFIG.EMAILJS_TEMPLATE_PATIENT, {
-      to_email: a.email,
-      to_name: `${a.firstName} ${a.lastName}`,
-      subject: `Randevunuz ${statusLabels[newStatus]}`,
-      patient_name: `${a.firstName} ${a.lastName}`,
-      service: a.service,
-      date: a.date,
-      time: a.time,
-      doctor: a.doctor || '-',
-      note: `Randevunuzun durumu: ${statusLabels[newStatus]}`
-    });
-  }
-  
-  // Hastaya WhatsApp (telefon numarası varsa)
-  if (a.phone) {
-    const cleanPhone = a.phone.replace(/\D/g,'');
-    const phoneWithCountry = cleanPhone.startsWith('9') ? cleanPhone : '9'+cleanPhone;
-    // Hastaya WhatsApp - fakat CallMeBot sadece onay verilen numaralara gönderir!
-    // Onun yerine wa.me link üreteceğiz (admin manuel tıklar)
-    console.log('Hasta WhatsApp link:', `https://wa.me/${phoneWithCountry}`);
-  }
-  
-  return a;
-}
-
-// ========= TARAYICI BİLDİRİMİ =========
-function sendBrowserNotification(title, body) {
-  if (!('Notification' in window)) return;
-  if (Notification.permission === 'granted') {
-    new Notification(title, { body, icon: '' });
-  } else if (Notification.permission !== 'denied') {
-    Notification.requestPermission().then(p => {
-      if (p === 'granted') new Notification(title, { body });
-    });
-  }
-}
-
-// ========= HATIRLATMA KONTROLÜ =========
-function checkUpcomingAppointments() {
-  const apps = DB.get('appointments');
-  const now = new Date();
-  const reminded = DB.get('reminded', []);
-  
-  apps.forEach(app => {
-    if (app.status === 'cancelled' || reminded.includes(app.id)) return;
-    const appDate = new Date(`${app.date}T${app.time}`);
-    const diffMin = (appDate - now) / 60000;
-    
-    if (diffMin > 0 && diffMin <= 30) {
-      sendBrowserNotification('⏰ Randevu Hatırlatması',
-        `${app.firstName} ${app.lastName} - 30 dk sonra!`);
-      
-      // Admin'e WhatsApp
-      sendWhatsApp(CONFIG.ADMIN_PHONE,
-        `⏰ *HATIRLATMA*\n${app.firstName} ${app.lastName} randevusu 30 dk sonra\n📅 ${app.date} ${app.time}\n💎 ${app.service}`);
-      
-      reminded.push(app.id);
-      DB.set('reminded', reminded);
-    }
-  });
-}
-setInterval(checkUpcomingAppointments, 60000);
-
-// ========= OTURUM =========
-function login(email, password) {
-  const staff = DB.get('staff').find(s => s.email===email && s.password===password);
-  if (staff) { sessionStorage.setItem('zeus_session', JSON.stringify(staff)); return staff; }
-  return null;
-}
-function currentUser() { try{return JSON.parse(sessionStorage.getItem('zeus_session'))}catch(e){return null} }
-function logout() { sessionStorage.removeItem('zeus_session'); window.location.href='giris.html'; }
-function requireAuth(role) {
-  const u = currentUser();
-  if (!u) { window.location.href='giris.html'; return null; }
-  if (role && u.role !== role && u.role !== 'admin') { window.location.href='panel.html'; return null; }
-  return u;
-}
-
-// ========= TOAST =========
-function toast(msg, isError=false) {
-  const t = document.createElement('div');
-  t.className = 'toast' + (isError ? ' error' : '');
-  t.innerHTML = (isError ? '❌ ' : '✅ ') + msg;
-  document.body.appendChild(t);
-  setTimeout(() => t.remove(), 3500);
-}
-
-// ========= MOBİL MENÜ =========
-document.addEventListener('DOMContentLoaded', () => {
-  const toggle = document.querySelector('.menu-toggle');
-  const links = document.querySelector('.nav-links');
-  if (toggle && links) toggle.onclick = () => links.classList.toggle('open');
-  if ('Notification' in window && Notification.permission === 'default') {
-    setTimeout(() => Notification.requestPermission(), 2000);
-  }
-});
-
-// ========= FOOTER =========
-function renderFooter() {
-  return `
-  <footer>
-    <div class="footer-grid">
+  <main class="main-content">
+    <header class="main-header">
       <div>
-        <div class="logo"><div class="logo-icon">⚡</div><div class="logo-text">ZEUS<br><small>Diş Kliniği</small></div></div>
-        <p style="margin-top:1rem;font-size:.9rem">Sağlıklı ve güzel gülüşler için Zeus Diş Kliniği yanınızda.</p>
+        <h1 id="pageTitle">Dashboard</h1>
+        <small style="color:var(--text-light)" id="pageSub">Genel bakış</small>
       </div>
-      <div><h4>Hizmetler</h4><ul>
-        <li><a href="hizmetler.html">İmplant</a></li><li><a href="hizmetler.html">Beyazlatma</a></li>
-        <li><a href="hizmetler.html">Porselen</a></li><li><a href="hizmetler.html">Ortodonti</a></li>
-      </ul></div>
-      <div><h4>Hızlı Linkler</h4><ul>
-        <li><a href="index.html">Anasayfa</a></li><li><a href="hakkimizda.html">Hakkımızda</a></li>
-        <li><a href="randevu.html">Randevu Al</a></li><li><a href="iletisim.html">İletişim</a></li>
-      </ul></div>
-      <div><h4>İletişim</h4><ul>
-        <li>📍 Kadıköy, İstanbul</li><li>📞 +90 212 555 00 00</li><li>✉️ info@zeusdis.com</li>
-      </ul></div>
-    </div>
-    <div class="footer-bottom">© 2025 Zeus Diş Kliniği. Tüm hakları saklıdır.</div>
-  </footer>`;
+      <div style="display:flex;gap:1rem;align-items:center">
+        <div class="notif-bell" onclick="toggleNotif()">🔔<span class="notif-count" id="notifCount">0</span>
+          <div class="notif-dropdown" id="notifDropdown"></div>
+        </div>
+        <div style="text-align:right"><strong id="userName"></strong><br><small style="color:var(--text-light)">👑 Admin</small></div>
+      </div>
+    </header>
+    <div id="viewArea"></div>
+  </main>
+</div>
+
+<div class="modal-bg" id="modal"><div class="modal" id="modalContent"></div></div>
+
+<script src="script.js"></script>
+<script>
+const user = requireAuth('admin');
+if (user) document.getElementById('userName').textContent = user.name;
+
+// ========= BİLDİRİMLER =========
+function loadNotifs() {
+  const n = DB.get('notifications').filter(x=>!x.read).reverse();
+  const el = document.getElementById('notifCount');
+  el.textContent = n.length;
+  el.style.display = n.length ? 'flex' : 'none';
+  document.getElementById('notifDropdown').innerHTML = n.length ? n.map(x=>`
+    <div class="notif-item"><h5>${x.title}</h5><p>${x.message}</p>
+    <div class="time">${new Date(x.createdAt).toLocaleString('tr-TR')}</div></div>`).join('')
+    : '<div class="notif-item"><p>Yeni bildirim yok</p></div>';
 }
+function toggleNotif() {
+  const dd = document.getElementById('notifDropdown');
+  dd.classList.toggle('open');
+  if (dd.classList.contains('open')) {
+    const notifs = DB.get('notifications'); notifs.forEach(n=>n.read=true); DB.set('notifications',notifs);
+    setTimeout(()=>document.getElementById('notifCount').style.display='none', 1500);
+  }
+}
+loadNotifs();
+setInterval(loadNotifs, 3000);
+
+function statusLabel(s){return {pending:'Bekliyor',confirmed:'Onaylı',completed:'Tamamlandı',cancelled:'İptal'}[s]||s}
+
+// ========= DASHBOARD =========
+const views = {
+  dashboard() {
+    const apps = DB.get('appointments');
+    const today = new Date().toISOString().split('T')[0];
+    const thisMonth = new Date().toISOString().slice(0,7);
+    const lastMonth = new Date(Date.now()-30*86400000).toISOString().slice(0,7);
+    const todayApps = apps.filter(a=>a.date===today);
+    const thisMonthApps = apps.filter(a=>a.date.startsWith(thisMonth));
+    const lastMonthApps = apps.filter(a=>a.date.startsWith(lastMonth));
+    const completed = apps.filter(a=>a.status==='completed');
+    const services = DB.get('services');
+    const revenue = completed.reduce((sum,a) => {
+      const svc = services.find(s=>s.name===a.service);
+      return sum + (svc?.price || 0);
+    }, 0);
+    const thisMonthRev = thisMonthApps.filter(a=>a.status==='completed').reduce((sum,a) => {
+      const svc = services.find(s=>s.name===a.service);
+      return sum + (svc?.price || 0);
+    }, 0);
+    const growth = lastMonthApps.length ? Math.round((thisMonthApps.length-lastMonthApps.length)/lastMonthApps.length*100) : 0;
+    
+    return `
+      <div class="kpi-grid">
+        <div class="kpi">
+          <div class="kpi-label">Toplam Randevu</div>
+          <div class="kpi-value">${apps.length}</div>
+          <div class="kpi-change ${growth<0?'down':''}">${growth>=0?'↑':'↓'} %${Math.abs(growth)} geçen aya göre</div>
+        </div>
+        <div class="kpi accent">
+          <div class="kpi-label">Bugün</div>
+          <div class="kpi-value">${todayApps.length}</div>
+          <div class="kpi-change">${todayApps.filter(a=>a.status==='confirmed').length} onaylı</div>
+        </div>
+        <div class="kpi success">
+          <div class="kpi-label">Bu Ay Ciro</div>
+          <div class="kpi-value">₺${thisMonthRev.toLocaleString('tr-TR')}</div>
+          <div class="kpi-change">${thisMonthApps.filter(a=>a.status==='completed').length} tamamlanan</div>
+        </div>
+        <div class="kpi danger">
+          <div class="kpi-label">Bekleyen</div>
+          <div class="kpi-value">${apps.filter(a=>a.status==='pending').length}</div>
+          <div class="kpi-change">Onay bekliyor</div>
+        </div>
+      </div>
+      
+      <div class="chart-row">
+        <div class="chart-box">
+          <h3>📈 Son 7 Gün Randevu Trendi</h3>
+          <canvas id="trendChart" height="80"></canvas>
+        </div>
+        <div class="chart-box">
+          <h3>🎯 Durum Dağılımı</h3>
+          <canvas id="statusChart" height="160"></canvas>
+        </div>
+      </div>
+      
+      <div class="chart-row">
+        <div class="chart-box">
+          <h3>💎 Hizmet Popülerliği</h3>
+          <canvas id="serviceChart" height="100"></canvas>
+        </div>
+        <div class="chart-box">
+          <h3>🔔 Son Aktiviteler</h3>
+          <div style="max-height:220px;overflow-y:auto">
+            ${apps.slice(-8).reverse().map(a=>`
+              <div style="padding:.7rem 0;border-bottom:1px solid var(--border);font-size:.9rem">
+                <strong>${a.firstName} ${a.lastName}</strong><br>
+                <small>${a.service} • ${a.date} ${a.time}</small>
+                <span class="badge badge-${a.status}" style="float:right">${statusLabel(a.status)}</span>
+              </div>`).join('') || '<p>Henüz randevu yok</p>'}
+          </div>
+        </div>
+      </div>
+      
+      <div class="chart-box">
+        <h3>📅 Bugünün Programı</h3>
+        ${todayApps.length ? renderAppTable(todayApps.sort((a,b)=>a.time.localeCompare(b.time))) : '<p style="padding:1rem;color:var(--text-light)">Bugün randevu yok</p>'}
+      </div>
+    `;
+  },
+
+  appointments() {
+    return `
+      <div class="quick-actions">
+        <button class="btn btn-primary btn-sm" onclick="exportCSV()">📥 CSV İndir</button>
+        <button class="btn btn-accent btn-sm" onclick="printAppointments()">🖨️ Yazdır</button>
+      </div>
+      <div class="filter-bar">
+        <input type="text" id="searchApp" placeholder="🔍 Hasta, hizmet, telefon...">
+        <select id="statusFilter">
+          <option value="">Tüm Durumlar</option>
+          <option value="pending">Bekliyor</option>
+          <option value="confirmed">Onaylı</option>
+          <option value="completed">Tamamlandı</option>
+          <option value="cancelled">İptal</option>
+        </select>
+        <input type="date" id="dateFilter">
+        <button class="btn btn-sm btn-outline" onclick="clearFilters()">Temizle</button>
+      </div>
+      <div id="appsList"></div>
+    `;
+  },
+
+  calendar() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const monthName = now.toLocaleDateString('tr-TR',{month:'long',year:'numeric'});
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month+1, 0).getDate();
+    const apps = DB.get('appointments');
+    const today = now.toISOString().split('T')[0];
+    
+    let html = `<div class="calendar">
+      <h2 style="text-transform:capitalize">${monthName}</h2>
+      <div class="calendar-grid">
+      ${['Pzt','Sal','Çar','Per','Cum','Cmt','Paz'].map(d=>`<div class="cal-head">${d}</div>`).join('')}`;
+    
+    const offset = firstDay === 0 ? 6 : firstDay - 1;
+    for (let i=0; i<offset; i++) html += '<div class="cal-day empty"></div>';
+    
+    for (let d=1; d<=daysInMonth; d++) {
+      const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      const dayApps = apps.filter(a=>a.date===dateStr);
+      const classes = ['cal-day'];
+      if (dayApps.length) classes.push('has-app');
+      if (dateStr === today) classes.push('today');
+      html += `<div class="${classes.join(' ')}" onclick="showDayApps('${dateStr}')">${d}
+        ${dayApps.length ? `<div class="cal-count">${dayApps.length}</div>` : ''}
+      </div>`;
+    }
+    html += '</div></div>';
+    return html;
+  },
+
+  patients() {
+    const apps = DB.get('appointments');
+    const pmap = {};
+    apps.forEach(a => {
+      const k = a.email;
+      if (!pmap[k]) pmap[k] = {name:`${a.firstName} ${a.lastName}`, phone:a.phone, email:a.email, count:0, spent:0, last:''};
+      pmap[k].count++;
+      if (a.date > pmap[k].last) pmap[k].last = a.date;
+      if (a.status === 'completed') {
+        const svc = DB.get('services').find(s=>s.name===a.service);
+        pmap[k].spent += svc?.price || 0;
+      }
+    });
+    const list = Object.values(pmap).sort((a,b)=>b.count-a.count);
+    return `
+      <div class="quick-actions">
+        <button class="btn btn-primary btn-sm" onclick="exportPatients()">📥 Hasta Listesi CSV</button>
+      </div>
+      <table class="data-table">
+        <thead><tr><th>Hasta</th><th>Telefon</th><th>E-posta</th><th>Randevu</th><th>Harcama</th><th>Son Ziyaret</th><th>İşlem</th></tr></thead>
+        <tbody>
+          ${list.length ? list.map(p=>`<tr>
+            <td><strong>${p.name}</strong></td><td>${p.phone}</td><td>${p.email}</td>
+            <td>${p.count}</td><td>₺${p.spent.toLocaleString('tr-TR')}</td><td>${p.last||'-'}</td>
+            <td>
+              <button class="btn btn-sm btn-outline" onclick='sendMessageToPatient(${JSON.stringify(p)})'>💬 Mesaj</button>
+            </td>
+          </tr>`).join('') : '<tr><td colspan="7" style="text-align:center;padding:2rem">Hasta yok</td></tr>'}
+        </tbody>
+      </table>`;
+  },
+
+  doctors() {
+    const docs = DB.get('doctors');
+    return `
+      <button class="btn btn-primary" onclick="editDoctor()" style="margin-bottom:1rem">➕ Yeni Doktor</button>
+      <table class="data-table">
+        <thead><tr><th>Ad</th><th>Branş</th><th>Telefon</th><th>E-posta</th><th>İşlem</th></tr></thead>
+        <tbody>
+          ${docs.map(d=>`<tr>
+            <td><strong>${d.name}</strong></td><td>${d.branch}</td><td>${d.phone}</td><td>${d.email}</td>
+            <td>
+              <button class="btn btn-sm btn-outline" onclick='editDoctor(${JSON.stringify(d)})'>Düzenle</button>
+              <button class="btn btn-sm btn-danger" onclick="deleteDoctor(${d.id})">Sil</button>
+            </td></tr>`).join('')}
+        </tbody>
+      </table>`;
+  },
+
+  services() {
+    const svcs = DB.get('services');
+    return `
+      <button class="btn btn-primary" onclick="editService()" style="margin-bottom:1rem">➕ Yeni Hizmet</button>
+      <table class="data-table">
+        <thead><tr><th>Hizmet</th><th>Fiyat</th><th>Süre (dk)</th><th>İşlem</th></tr></thead>
+        <tbody>
+          ${svcs.map((s,i)=>`<tr>
+            <td><strong>${s.name}</strong></td><td>₺${s.price?.toLocaleString('tr-TR')||0}</td>
+            <td>${s.duration||0}</td>
+            <td>
+              <button class="btn btn-sm btn-outline" onclick='editService(${i})'>Düzenle</button>
+              <button class="btn btn-sm btn-danger" onclick="deleteService(${i})">Sil</button>
+            </td></tr>`).join('')}
+        </tbody>
+      </table>`;
+  },
+
+  staff() {
+    const staff = DB.get('staff');
+    return `
+      <button class="btn btn-primary" onclick="editStaff()" style="margin-bottom:1rem">➕ Yeni Personel</button>
+      <table class="data-table">
+        <thead><tr><th>Ad</th><th>E-posta</th><th>Rol</th><th>İşlem</th></tr></thead>
+        <tbody>
+          ${staff.map(s=>`<tr>
+            <td><strong>${s.name}</strong></td><td>${s.email}</td>
+            <td><span class="badge badge-${s.role==='admin'?'confirmed':'pending'}">${s.role}</span></td>
+            <td>
+              <button class="btn btn-sm btn-outline" onclick='editStaff(${JSON.stringify(s)})'>Düzenle</button>
+              ${s.id !== 1 ? `<button class="btn btn-sm btn-danger" onclick="deleteStaff(${s.id})">Sil</button>` : ''}
+            </td></tr>`).join('')}
+        </tbody>
+      </table>`;
+  },
+
+  messaging() {
+    const apps = DB.get('appointments');
+    const patients = [...new Map(apps.map(a=>[a.email,{name:`${a.firstName} ${a.lastName}`, email:a.email, phone:a.phone}])).values()];
+    return `
+      <div class="message-panel">
+        <h3>💬 Hastaya Toplu Mesaj / Tekil Mesaj</h3>
+        <p style="color:var(--text-light);margin-bottom:1rem">Hastalara e-posta veya WhatsApp üzerinden mesaj gönderin.</p>
+        
+        <div class="form-group">
+          <label>Alıcı</label>
+          <select id="msgRecipient">
+            <option value="all_email">📧 Tüm Hastalara E-posta</option>
+            <option value="">── veya tek hasta ──</option>
+            ${patients.map(p=>`<option value="${p.email}|${p.phone}|${p.name}">${p.name} (${p.email})</option>`).join('')}
+          </select>
+        </div>
+        
+        <div class="form-group">
+          <label>Kanal</label>
+          <select id="msgChannel">
+            <option value="email">📧 E-posta</option>
+            <option value="whatsapp">💬 WhatsApp (wa.me linki açar)</option>
+          </select>
+        </div>
+        
+        <div class="form-group"><label>Konu (e-posta için)</label><input id="msgSubject" placeholder="Konu..."></div>
+        <div class="form-group"><label>Mesaj</label><textarea id="msgBody" rows="6" placeholder="Mesajınızı yazın..."></textarea></div>
+        
+        <button class="btn btn-primary" onclick="sendBulkMessage()">📤 Gönder</button>
+      </div>
+    `;
+  },
+
+  emails() {
+    const logs = DB.get('email_log', []).slice().reverse();
+    const sent = logs.filter(l=>l.status==='SENT').length;
+    const failed = logs.filter(l=>l.status?.startsWith('FAILED')).length;
+    return `
+      <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)">
+        <div class="kpi success"><div class="kpi-label">Gönderilen</div><div class="kpi-value">${sent}</div></div>
+        <div class="kpi danger"><div class="kpi-label">Başarısız</div><div class="kpi-value">${failed}</div></div>
+        <div class="kpi"><div class="kpi-label">Toplam</div><div class="kpi-value">${logs.length}</div></div>
+      </div>
+      ${logs.length ? logs.slice(0,50).map(l=>`
+        <div class="card" style="margin-bottom:.8rem">
+          <small style="color:var(--primary)">${new Date(l.sentAt).toLocaleString('tr-TR')}</small>
+          <span class="${l.status==='SENT'?'status-ok':'status-bad'}" style="float:right">${l.status}</span>
+          <h4 style="margin:.3rem 0">${l.subject}</h4>
+          <p><strong>Alıcı:</strong> ${l.to}</p>
+          <details><summary style="cursor:pointer;color:var(--primary)">Detay</summary>
+            <pre style="background:#f7fafc;padding:.8rem;border-radius:8px;white-space:pre-wrap;font-size:.8rem;margin-top:.5rem">${l.body}</pre>
+          </details>
+        </div>`).join('') : '<p>E-posta kaydı yok</p>'}
+    `;
+  },
+
+  whatsapp() {
+    const logs = DB.get('whatsapp_log', []).slice().reverse();
+    return `
+      <p style="color:var(--text-light);margin-bottom:1rem">💡 CallMeBot üzerinden gönderilen WhatsApp mesajları</p>
+      ${logs.length ? logs.slice(0,50).map(l=>`
+        <div class="card" style="margin-bottom:.8rem">
+          <small style="color:var(--primary)">${new Date(l.sentAt).toLocaleString('tr-TR')}</small>
+          <span class="${l.status==='SENT'?'status-ok':'status-bad'}" style="float:right">${l.status}</span>
+          <p><strong>Alıcı:</strong> +${l.to}</p>
+          <pre style="background:#f7fafc;padding:.8rem;border-radius:8px;white-space:pre-wrap;font-size:.85rem;margin-top:.5rem">${l.message}</pre>
+        </div>`).join('') : '<p>WhatsApp kaydı yok. CallMeBot kurulumu yaptığınızda otomatik çalışacak.</p>'}
+    `;
+  },
+
+  settings() {
+    const emailOK = !CONFIG.EMAILJS_PUBLIC_KEY.includes('BURAYA');
+    const waOK = !CONFIG.WHATSAPP_API_KEY.includes('BURAYA');
+    return `
+      <div class="settings-grid">
+        <div class="setting-card">
+          <h3>📧 EmailJS Durumu</h3>
+          <p style="margin:1rem 0"><strong>Durum:</strong> <span class="${emailOK?'status-ok':'status-bad'}">${emailOK?'✅ Aktif':'❌ Yapılandırılmadı'}</span></p>
+          <p style="font-size:.9rem"><strong>Admin E-posta:</strong> ${CONFIG.ADMIN_EMAIL}</p>
+          <p style="font-size:.9rem;color:var(--text-light);margin-top:1rem">
+            Kurulum için: <a href="https://www.emailjs.com" target="_blank" style="color:var(--primary)">emailjs.com</a>'a kayıt olun,
+            <code>script.js</code> dosyasındaki <code>CONFIG</code> bölümüne bilgilerinizi yazın.
+          </p>
+          <button class="btn btn-primary btn-sm" onclick="testEmail()" style="margin-top:1rem">🧪 Test E-postası Gönder</button>
+        </div>
+        
+        <div class="setting-card">
+          <h3>💬 WhatsApp (CallMeBot) Durumu</h3>
+          <p style="margin:1rem 0"><strong>Durum:</strong> <span class="${waOK?'status-ok':'status-bad'}">${waOK?'✅ Aktif':'❌ Yapılandırılmadı'}</span></p>
+          <p style="font-size:.9rem"><strong>Admin Telefon:</strong> +${CONFIG.ADMIN_PHONE}</p>
+          <p style="font-size:.9rem;color:var(--text-light);margin-top:1rem">
+            Kurulum için: WhatsApp'tan <strong>+34 644 51 95 23</strong> numarasına
+            <code>"I allow callmebot to send me messages"</code> yazın.
+          </p>
+          <button class="btn btn-primary btn-sm" onclick="testWhatsApp()" style="margin-top:1rem">🧪 Test Mesajı Gönder</button>
+        </div>
+        
+        <div class="setting-card">
+          <h3>📱 SMS Gönderimi</h3>
+          <p style="margin:1rem 0"><strong>Durum:</strong> <span class="status-bad">❌ Desteklenmiyor</span></p>
+          <p style="font-size:.9rem;color:var(--text-light)">
+            Gerçek SMS için backend + ücretli servis gerekir:
+            <ul style="margin-top:.5rem;padding-left:1.2rem">
+              <li><strong>NetGSM</strong> (Türkiye) - aylık ~₺100</li>
+              <li><strong>İletiMerkezi</strong> - paket fiyatlandırma</li>
+              <li><strong>Twilio</strong> - global, dolar bazlı</li>
+            </ul>
+            WhatsApp bildirimi pratikte SMS'ten daha etkili ve tamamen ücretsiz.
+          </p>
+        </div>
+        
+        <div class="setting-card">
+          <h3>💾 Veri Yönetimi</h3>
+          <p style="color:var(--text-light);font-size:.9rem;margin:1rem 0">Tüm verileri yedekle veya sıfırla.</p>
+          <button class="btn btn-primary btn-sm" onclick="backupData()">💾 Yedekle (JSON)</button>
+          <button class="btn btn-accent btn-sm" onclick="document.getElementById('importFile').click()">📥 Yedekten Yükle</button>
+          <input type="file" id="importFile" accept=".json" style="display:none" onchange="restoreData(event)">
+          <button class="btn btn-danger btn-sm" onclick="resetData()" style="margin-top:.5rem">⚠️ Tüm Verileri Sil</button>
+        </div>
+      </div>
+    `;
+  }
+};
+
+function renderAppTable(apps) {
+  if (!apps.length) return '<p style="padding:2rem;text-align:center;color:var(--text-light)">Randevu bulunamadı</p>';
+  return `<table class="data-table">
+    <thead><tr><th>Hasta</th><th>Hizmet</th><th>Doktor</th><th>Tarih/Saat</th><th>Durum</th><th>İşlem</th></tr></thead>
+    <tbody>${apps.map(a=>`<tr>
+      <td><strong>${a.firstName} ${a.lastName}</strong><br><small>${a.phone}</small></td>
+      <td>${a.service}</td><td>${a.doctor||'-'}</td>
+      <td>${a.date}<br><small>${a.time}</small></td>
+      <td><span class="badge badge-${a.status}">${statusLabel(a.status)}</span></td>
+      <td>
+        <select onchange="changeStatus(${a.id},this.value)" style="padding:.3rem;border-radius:6px;border:1px solid var(--border);font-size:.8rem">
+          <option value="pending" ${a.status==='pending'?'selected':''}>Bekliyor</option>
+          <option value="confirmed" ${a.status==='confirmed'?'selected':''}>Onayla</option>
+          <option value="completed" ${a.status==='completed'?'selected':''}>Tamamla</option>
+          <option value="cancelled" ${a.status==='cancelled'?'selected':''}>İptal</option>
+        </select>
+        <button class="btn btn-sm btn-danger" onclick="deleteApp(${a.id})">🗑️</button>
+      </td></tr>`).join('')}
+    </tbody></table>`;
+}
+
+// ========= RANDEVU İŞLEMLERİ =========
+async function changeStatus(id, status) {
+  await updateAppointmentStatus(id, status);
+  toast('Durum güncellendi ve hastaya bildirim gönderildi');
+  loadView(currentView);
+}
+function deleteApp(id) {
+  if (!confirm('Randevuyu silmek istiyor musunuz?')) return;
+  DB.set('appointments', DB.get('appointments').filter(a=>a.id!==id));
+  toast('Silindi'); loadView(currentView);
+}
+
+// ========= FİLTRE =========
+function applyFilters() {
+  const q = document.getElementById('searchApp').value.toLowerCase();
+  const s = document.getElementById('statusFilter').value;
+  const d = document.getElementById('dateFilter').value;
+  let apps = DB.get('appointments').sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
+  if (q) apps = apps.filter(a => `${a.firstName} ${a.lastName} ${a.email} ${a.phone} ${a.service}`.toLowerCase().includes(q));
+  if (s) apps = apps.filter(a=>a.status===s);
+  if (d) apps = apps.filter(a=>a.date===d);
+  document.getElementById('appsList').innerHTML = renderAppTable(apps);
+}
+function clearFilters() {
+  document.getElementById('searchApp').value='';
+  document.getElementById('statusFilter').value='';
+  document.getElementById('dateFilter').value='';
+  applyFilters();
+}
+
+// ========= EXPORT =========
+function exportCSV() {
+  const apps = DB.get('appointments');
+  const headers = ['Ad','Soyad','Telefon','E-posta','Hizmet','Doktor','Tarih','Saat','Durum','Not','Oluşturulma'];
+  const rows = apps.map(a=>[a.firstName,a.lastName,a.phone,a.email,a.service,a.doctor||'',a.date,a.time,statusLabel(a.status),a.note||'',a.createdAt]);
+  const csv = [headers, ...rows].map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = `randevular-${new Date().toISOString().split('T')[0]}.csv`; a.click();
+  toast('CSV indirildi');
+}
+function exportPatients() {
+  const apps = DB.get('appointments');
+  const pmap = {};
+  apps.forEach(a=>{ const k=a.email; if(!pmap[k]) pmap[k]={name:`${a.firstName} ${a.lastName}`,phone:a.phone,email:a.email,count:0}; pmap[k].count++; });
+  const headers = ['Ad Soyad','Telefon','E-posta','Randevu Sayısı'];
+  const rows = Object.values(pmap).map(p=>[p.name,p.phone,p.email,p.count]);
+  const csv = [headers,...rows].map(r=>r.map(c=>`"${c}"`).join(',')).join('\n');
+  const blob = new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='hastalar.csv'; a.click();
+  toast('Hasta listesi indirildi');
+}
+function printAppointments() { window.print(); }
+
+// ========= TAKVİM =========
+function showDayApps(date) {
+  const apps = DB.get('appointments').filter(a=>a.date===date);
+  document.getElementById('modalContent').innerHTML = `
+    <h3>📅 ${date} Randevuları (${apps.length})</h3>
+    ${apps.length ? apps.sort((a,b)=>a.time.localeCompare(b.time)).map(a=>`
+      <div style="padding:1rem;border:1px solid var(--border);border-radius:10px;margin-bottom:.5rem">
+        <strong>${a.time}</strong> — ${a.firstName} ${a.lastName}<br>
+        <small>${a.service} ${a.doctor?'• '+a.doctor:''}</small>
+        <span class="badge badge-${a.status}" style="float:right">${statusLabel(a.status)}</span>
+      </div>`).join('') : '<p>Randevu yok</p>'}
+    <div class="modal-actions"><button class="btn btn-outline" onclick="closeModal()">Kapat</button></div>
+  `;
+  document.getElementById('modal').classList.add('open');
+}
+
+// ========= MESAJLAŞMA =========
+async function sendBulkMessage() {
+  const r = document.getElementById('msgRecipient').value;
+  const ch = document.getElementById('msgChannel').value;
+  const subj = document.getElementById('msgSubject').value;
+  const body = document.getElementById('msgBody').value;
+  if (!body.trim()) return toast('Mesaj boş olamaz', true);
+  
+  if (r === 'all_email') {
+    const apps = DB.get('appointments');
+    const emails = [...new Set(apps.map(a=>a.email))];
+    let sent = 0;
+    for (const email of emails) {
+      const ok = await sendRealEmail(CONFIG.EMAILJS_TEMPLATE_PATIENT, {
+        to_email: email, subject: subj, patient_name: 'Değerli Hastamız',
+        service:'-', date:'-', time:'-', doctor:'-', note: body
+      });
+      if (ok) sent++;
+    }
+    toast(`${sent}/${emails.length} e-posta gönderildi`);
+  } else if (r) {
+    const [email, phone, name] = r.split('|');
+    if (ch === 'email') {
+      const ok = await sendRealEmail(CONFIG.EMAILJS_TEMPLATE_PATIENT, {
+        to_email: email, subject: subj, patient_name: name,
+        service:'-', date:'-', time:'-', doctor:'-', note: body
+      });
+      toast(ok ? 'E-posta gönderildi' : 'Başarısız', !ok);
+    } else {
+      const cleanPhone = phone.replace(/\D/g,'');
+      const pn = cleanPhone.startsWith('9') ? cleanPhone : '9'+cleanPhone;
+      window.open(`https://wa.me/${pn}?text=${encodeURIComponent(body)}`, '_blank');
+      toast('WhatsApp açıldı');
+    }
+  } else {
+    toast('Alıcı seçin', true);
+  }
+}
+function sendMessageToPatient(p) {
+  loadView('messaging');
+  setTimeout(() => {
+    document.getElementById('msgRecipient').value = `${p.email}|${p.phone}|${p.name}`;
+  }, 100);
+}
+
+// ========= TEST =========
+async function testEmail() {
+  toast('Test e-postası gönderiliyor...');
+  const ok = await sendRealEmail(CONFIG.EMAILJS_TEMPLATE_ADMIN, {
+    to_email: CONFIG.ADMIN_EMAIL, to_name: CONFIG.ADMIN_NAME,
+    subject: '🧪 Zeus Test E-postası',
+    patient_name: 'TEST', patient_phone:'05xx', patient_email:'test@test.com',
+    service:'Test', doctor:'Test', date: new Date().toLocaleDateString(), time:'10:00',
+    note:'Bu bir test e-postasıdır.', created_at: new Date().toLocaleString('tr-TR')
+  });
+  toast(ok ? '✅ E-posta gönderildi! Gmail kontrol edin.' : '❌ Başarısız — ayarları kontrol edin', !ok);
+}
+async function testWhatsApp() {
+  toast('Test WhatsApp gönderiliyor...');
+  const ok = await sendWhatsApp(CONFIG.ADMIN_PHONE, '🧪 Zeus Test Mesajı\n\nEğer bunu görüyorsanız kurulum başarılı!');
+  toast(ok ? '✅ WhatsApp gönderildi! Telefonunuzu kontrol edin.' : '❌ Kurulumu kontrol edin', !ok);
+}
+
+// ========= VERİ YEDEKLEME =========
+function backupData() {
+  const data = {
+    appointments: DB.get('appointments'),
+    doctors: DB.get('doctors'),
+    staff: DB.get('staff'),
+    services: DB.get('services'),
+    email_log: DB.get('email_log'),
+    whatsapp_log: DB.get('whatsapp_log'),
+    exportedAt: new Date().toISOString()
+  };
+  const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
+  const a = document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download = `zeus-yedek-${new Date().toISOString().split('T')[0]}.json`; a.click();
+  toast('Yedek indirildi');
+}
+function restoreData(e) {
+  const f = e.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = ev => {
+    try {
+      const d = JSON.parse(ev.target.result);
+      Object.keys(d).forEach(k => { if (k !== 'exportedAt') DB.set(k, d[k]); });
+      toast('Veriler yüklendi'); setTimeout(()=>location.reload(), 1000);
+    } catch(err) { toast('Geçersiz dosya', true); }
+  };
+  r.readAsText(f);
+}
+function resetData() {
+  if (!confirm('TÜM veriler silinecek! Emin misiniz?')) return;
+  if (!confirm('Son uyarı! Geri alınamaz.')) return;
+  localStorage.clear(); location.reload();
+}
+
+// ========= CRUD =========
+function editDoctor(d) {
+  const isEdit = !!d;
+  document.getElementById('modalContent').innerHTML = `
+    <h3>${isEdit?'Doktor Düzenle':'Yeni Doktor'}</h3>
+    <form id="docForm">
+      <div class="form-group"><label>Ad Soyad</label><input name="name" required value="${d?.name||''}"></div>
+      <div class="form-group"><label>Branş</label><input name="branch" required value="${d?.branch||''}"></div>
+      <div class="form-group"><label>Telefon</label><input name="phone" required value="${d?.phone||''}"></div>
+      <div class="form-group"><label>E-posta</label><input name="email" type="email" required value="${d?.email||''}"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" onclick="closeModal()">İptal</button>
+        <button type="submit" class="btn btn-primary">Kaydet</button>
+      </div>
+    </form>`;
+  document.getElementById('modal').classList.add('open');
+  document.getElementById('docForm').onsubmit = e => {
+    e.preventDefault();
+    const data = Object.fromEntries(new FormData(e.target).entries());
+    const docs = DB.get('doctors');
+    if (isEdit) { const i = docs.findIndex(x=>x.id===d.id); docs[i]={...d,...data}; }
+    else docs.push({id:Date.now(),...data});
+    DB.set('doctors', docs); toast('Kaydedildi'); closeModal(); loadView('doctors');
+  };
+}
+function deleteDoctor(id) {
+  if (!confirm('Silmek istiyor musunuz?')) return;
+  DB.set('doctors', DB.get('doctors').filter(d=>d.id!==id));
+  toast('Silindi'); loadView('doctors');
+}
+
+function editService(idx) {
+  const svcs = DB.get('services');
+  const s = idx !== undefined ? svcs[idx] : null;
+  document.getElementById('modalContent').innerHTML = `
+    <h3>${s?'Hizmet Düzenle':'Yeni Hizmet'}</h3>
+    <form id="svcForm">
+      <div class="form-group"><label>Hizmet Adı</label><input name="name" required value="${s?.name||''}"></div>
+      <div class="form-group"><label>Fiyat (₺)</label><input name="price" type="number" required value="${s?.price||0}"></div>
+      <div class="form-group"><label>Süre (dakika)</label><input name="duration" type="number" required value="${s?.duration||30}"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" onclick="closeModal()">İptal</button>
+        <button type="submit" class="btn btn-primary">Kaydet</button>
+      </div>
+    </form>`;
+  document.getElementById('modal').classList.add('open');
+  document.getElementById('svcForm').onsubmit = e => {
+    e.preventDefault();
+    const data = Object.fromEntries(new FormData(e.target).entries());
+    data.price = +data.price; data.duration = +data.duration;
+    if (s) svcs[idx] = data; else svcs.push(data);
+    DB.set('services', svcs); toast('Kaydedildi'); closeModal(); loadView('services');
+  };
+}
+function deleteService(i) {
+  if (!confirm('Silmek istiyor musunuz?')) return;
+  const s = DB.get('services'); s.splice(i,1); DB.set('services', s);
+  toast('Silindi'); loadView('services');
+}
+
+function editStaff(s) {
+  const isEdit = !!s;
+  document.getElementById('modalContent').innerHTML = `
+    <h3>${isEdit?'Personel Düzenle':'Yeni Personel'}</h3>
+    <form id="staffForm">
+      <div class="form-group"><label>Ad Soyad</label><input name="name" required value="${s?.name||''}"></div>
+      <div class="form-group"><label>E-posta</label><input name="email" type="email" required value="${s?.email||''}"></div>
+      <div class="form-group"><label>Şifre</label><input name="password" required value="${s?.password||''}"></div>
+      <div class="form-group"><label>Rol</label>
+        <select name="role">
+          <option value="staff" ${s?.role==='staff'?'selected':''}>Personel</option>
+          <option value="admin" ${s?.role==='admin'?'selected':''}>Admin</option>
+        </select></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" onclick="closeModal()">İptal</button>
+        <button type="submit" class="btn btn-primary">Kaydet</button>
+      </div>
+    </form>`;
+  document.getElementById('modal').classList.add('open');
+  document.getElementById('staffForm').onsubmit = e => {
+    e.preventDefault();
+    const data = Object.fromEntries(new FormData(e.target).entries());
+    const arr = DB.get('staff');
+    if (isEdit) { const i = arr.findIndex(x=>x.id===s.id); arr[i]={...s,...data}; }
+    else arr.push({id:Date.now(),...data});
+    DB.set('staff', arr); toast('Kaydedildi'); closeModal(); loadView('staff');
+  };
+}
+function deleteStaff(id) {
+  if (!confirm('Silmek istiyor musunuz?')) return;
+  DB.set('staff', DB.get('staff').filter(s=>s.id!==id));
+  toast('Silindi'); loadView('staff');
+}
+
+function closeModal(){document.getElementById('modal').classList.remove('open')}
+
+// ========= CHARTLAR =========
+function renderCharts() {
+  const apps = DB.get('appointments');
+  
+  // Trend (son 7 gün)
+  const trendEl = document.getElementById('trendChart');
+  if (trendEl) {
+    const days = []; const counts = [];
+    for (let i=6; i>=0; i--) {
+      const d = new Date(Date.now()-i*86400000).toISOString().split('T')[0];
+      days.push(new Date(d).toLocaleDateString('tr-TR',{day:'numeric',month:'short'}));
+      counts.push(apps.filter(a=>a.date===d).length);
+    }
+    new Chart(trendEl, {
+      type:'line',
+      data:{labels:days,datasets:[{label:'Randevu',data:counts,borderColor:'#5ba8d9',backgroundColor:'rgba(91,168,217,0.1)',tension:0.4,fill:true}]},
+      options:{responsive:true,plugins:{legend:{display:false}}}
+    });
+  }
+  
+  // Durum
+  const statusEl = document.getElementById('statusChart');
+  if (statusEl) {
+    const statuses = ['pending','confirmed','completed','cancelled'];
+    const data = statuses.map(s => apps.filter(a=>a.status===s).length);
+    new Chart(statusEl, {
+      type:'doughnut',
+      data:{labels:['Bekliyor','Onaylı','Tamamlandı','İptal'],datasets:[{data,backgroundColor:['#f4c56a','#5ba8d9','#7cc288','#e57878']}]},
+      options:{responsive:true}
+    });
+  }
+  
+  // Hizmet
+  const svcEl = document.getElementById('serviceChart');
+  if (svcEl) {
+    const svcCount = {};
+    apps.forEach(a => svcCount[a.service] = (svcCount[a.service]||0)+1);
+    const labels = Object.keys(svcCount);
+    const data = Object.values(svcCount);
+    new Chart(svcEl, {
+      type:'bar',
+      data:{labels,datasets:[{label:'Randevu',data,backgroundColor:'#5ba8d9'}]},
+      options:{responsive:true,plugins:{legend:{display:false}}}
+    });
+  }
+}
+
+// ========= VIEW YÖNETİMİ =========
+let currentView = 'dashboard';
+const viewTitles = {
+  dashboard:['Dashboard','Genel bakış ve istatistikler'],
+  appointments:['Randevular','Tüm randevuları yönet'],
+  calendar:['Takvim','Aylık randevu takvimi'],
+  patients:['Hastalar','Tüm hasta listesi'],
+  doctors:['Doktorlar','Doktor yönetimi'],
+  services:['Hizmetler','Hizmet ve fiyatlar'],
+  staff:['Personel','Personel ve yetkiler'],
+  messaging:['Mesaj Gönder','Hastalara toplu/tekil mesaj'],
+  emails:['E-posta Log','Gönderilen e-postalar'],
+  whatsapp:['WhatsApp Log','Gönderilen WhatsApp mesajları'],
+  settings:['Ayarlar','Sistem ayarları ve entegrasyonlar']
+};
+
+function loadView(v) {
+  currentView = v;
+  const [t,s] = viewTitles[v] || [v,''];
+  document.getElementById('pageTitle').textContent = t;
+  document.getElementById('pageSub').textContent = s;
+  document.getElementById('viewArea').innerHTML = views[v]();
+  document.querySelectorAll('.sidebar-menu a[data-view]').forEach(a => {
+    a.classList.toggle('active', a.dataset.view === v);
+  });
+  
+  if (v === 'dashboard') setTimeout(renderCharts, 100);
+  if (v === 'appointments') {
+    applyFilters();
+    document.getElementById('searchApp').oninput = applyFilters;
+    document.getElementById('statusFilter').onchange = applyFilters;
+    document.getElementById('dateFilter').onchange = applyFilters;
+  }
+}
+
+document.querySelectorAll('.sidebar-menu a[data-view]').forEach(a => {
+  a.onclick = e => { e.preventDefault(); loadView(a.dataset.view); };
+});
+loadView('dashboard');
+</script>
+</body></html>
