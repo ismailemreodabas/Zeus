@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="tr"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin Paneli - Zeus</title>
+<link rel="stylesheet" href="style.css"></head><body>
+
+<div class="panel-wrapper">
+  <aside class="sidebar">
+    <div class="logo"><div class="logo-icon" style="background:linear-gradient(135deg,#e57878,#f4c56a)">👑</div><div class="logo-text">ZEUS<br><small style="font-size:.7rem">Admin</small></div></div>
+    <ul class="sidebar-menu">
+      <li><a href="#" class="active" data-view="dashboard">📊 Dashboard</a></li>
+      <li><a href="#" data-view="appointments">📅 Randevular</a></li>
+      <li><a href="#" data-view="doctors">🩺 Doktor Yönetimi</a></li>
+      <li><a href="#" data-view="services">💎 Hizmetler</a></li>
+      <li><a href="#" data-view="staff">👥 Personel</a></li>
+      <li><a href="#" data-view="emails">✉️ E-posta Kayıtları</a></li>
+      <li><a href="panel.html">🔄 Personel Paneline Geç</a></li>
+      <li><a href="#" onclick="logout();return false">🚪 Çıkış</a></li>
+    </ul>
+  </aside>
+  
+  <main class="main-content">
+    <header class="main-header">
+      <h1 id="pageTitle">Admin Dashboard</h1>
+      <div style="display:flex;gap:1rem;align-items:center">
+        <div class="notif-bell" onclick="toggleNotif()">🔔<span class="notif-count" id="notifCount">0</span>
+          <div class="notif-dropdown" id="notifDropdown"></div>
+        </div>
+        <div><strong id="userName"></strong><br><small style="color:var(--text-light)">👑 Admin</small></div>
+      </div>
+    </header>
+    <div id="viewArea"></div>
+  </main>
+</div>
+
+<div class="modal-bg" id="modal"><div class="modal" id="modalContent"></div></div>
+
+<script src="script.js"></script>
+<script>
+const user = requireAuth('admin');
+if (user) document.getElementById('userName').textContent = user.name;
+
+function loadNotifs() {
+  const n = DB.get('notifications').filter(x => !x.read).reverse();
+  document.getElementById('notifCount').textContent = n.length;
+  document.getElementById('notifCount').style.display = n.length ? 'flex' : 'none';
+  const dd = document.getElementById('notifDropdown');
+  dd.innerHTML = n.length ? n.map(x=>`
+    <div class="notif-item"><h5>${x.title}</h5><p>${x.message}</p>
+    <div class="time">${new Date(x.createdAt).toLocaleString('tr-TR')}</div></div>
+  `).join('') : '<div class="notif-item"><p>Yeni bildirim yok</p></div>';
+}
+function toggleNotif() {
+  const dd = document.getElementById('notifDropdown');
+  dd.classList.toggle('open');
+  if (dd.classList.contains('open')) {
+    const notifs = DB.get('notifications'); notifs.forEach(n=>n.read=true); DB.set('notifications',notifs);
+    setTimeout(()=>document.getElementById('notifCount').style.display='none', 1500);
+  }
+}
+loadNotifs();
+setInterval(loadNotifs, 5000);
+
+const views = {
+  dashboard() {
+    const apps = DB.get('appointments');
+    const docs = DB.get('doctors');
+    const staff = DB.get('staff');
+    const today = new Date().toISOString().split('T')[0];
+    const monthRev = apps.filter(a=>a.status==='completed').length * 1500; // simülasyon
+    return `
+      <div class="stat-grid">
+        <div class="stat-card"><h3>Toplam Randevu</h3><div class="big">${apps.length}</div></div>
+        <div class="stat-card" style="border-color:var(--accent)"><h3>Bugün</h3><div class="big">${apps.filter(a=>a.date===today).length}</div></div>
+        <div class="stat-card" style="border-color:var(--success)"><h3>Doktor Sayısı</h3><div class="big">${docs.length}</div></div>
+        <div class="stat-card" style="border-color:var(--danger)"><h3>Tahmini Ciro</h3><div class="big">₺${monthRev.toLocaleString()}</div></div>
+      </div>
+      
+      <div class="grid-2">
+        <div class="card">
+          <h3>Durum Dağılımı</h3>
+          ${['pending','confirmed','completed','cancelled'].map(s=>{
+            const c = apps.filter(a=>a.status===s).length;
+            const pct = apps.length ? Math.round(c/apps.length*100) : 0;
+            return `<div style="margin:.8rem 0">
+              <div style="display:flex;justify-content:space-between;font-size:.9rem">
+                <span>${statusLabel(s)}</span><span>${c} (${pct}%)</span>
+              </div>
+              <div style="background:#eee;height:8px;border-radius:4px;margin-top:4px">
+                <div style="width:${pct}%;height:100%;background:var(--primary);border-radius:4px"></div>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+        <div class="card">
+          <h3>Son Aktiviteler</h3>
+          ${apps.slice(-5).reverse().map(a=>`
+            <div style="padding:.6rem 0;border-bottom:1px solid var(--border);font-size:.9rem">
+              <strong>${a.firstName} ${a.lastName}</strong> — ${a.service}<br>
+              <small style="color:var(--text-light)">${a.date} ${a.time}</small>
+            </div>
+          `).join('') || '<p style="color:var(--text-light)">Kayıt yok</p>'}
+        </div>
+      </div>
+    `;
+  },
+  
+  appointments() {
+    const apps = DB.get('appointments').sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
+    return `
+      <div style="margin-bottom:1rem">
+        <input type="text" id="searchApp" placeholder="🔍 Ara..." style="padding:.6rem 1rem;border:1px solid var(--border);border-radius:10px;width:300px;max-width:100%">
+      </div>
+      <div id="appsList">${renderAppTable(apps)}</div>
+    `;
+  },
+  
+  doctors() {
+    const docs = DB.get('doctors');
+    return `
+      <button class="btn btn-primary" onclick="editDoctor()" style="margin-bottom:1rem">➕ Yeni Doktor</button>
+      <table class="data-table">
+        <thead><tr><th>Ad</th><th>Branş</th><th>Telefon</th><th>E-posta</th><th>İşlem</th></tr></thead>
+        <tbody>
+          ${docs.map(d=>`
+            <tr>
+              <td><strong>${d.name}</strong></td><td>${d.branch}</td><td>${d.phone}</td><td>${d.email}</td>
+              <td>
+                <button class="btn btn-sm btn-outline" onclick='editDoctor(${JSON.stringify(d)})'>Düzenle</button>
+                <button class="btn btn-sm btn-danger" onclick="deleteDoctor(${d.id})">Sil</button>
+              </td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    `;
+  },
+  
+  services() {
+    const svcs = DB.get('services');
+    return `
+      <div class="card">
+        <h3>Hizmet Ekle</h3>
+        <div style="display:flex;gap:.5rem;margin:1rem 0">
+          <input id="newSvc" placeholder="Hizmet adı" style="flex:1;padding:.6rem;border:1px solid var(--border);border-radius:10px">
+          <button class="btn btn-primary" onclick="addService()">Ekle</button>
+        </div>
+        <h4 style="margin-top:1.5rem">Mevcut Hizmetler</h4>
+        <ul style="list-style:none;margin-top:.8rem">
+          ${svcs.map((s,i)=>`<li style="padding:.8rem;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+            <span>${s}</span>
+            <button class="btn btn-sm btn-danger" onclick="deleteService(${i})">Sil</button>
+          </li>`).join('')}
+        </ul>
+      </div>
+    `;
+  },
+  
+  staff() {
+    const staff = DB.get('staff');
+    return `
+      <button class="btn btn-primary" onclick="editStaff()" style="margin-bottom:1rem">➕ Yeni Personel</button>
+      <table class="data-table">
+        <thead><tr><th>Ad</th><th>E-posta</th><th>Rol</th><th>İşlem</th></tr></thead>
+        <tbody>
+          ${staff.map(s=>`
+            <tr>
+              <td><strong>${s.name}</strong></td><td>${s.email}</td>
+              <td><span class="badge badge-${s.role==='admin'?'confirmed':'pending'}">${s.role}</span></td>
+              <td>
+                <button class="btn btn-sm btn-outline" onclick='editStaff(${JSON.stringify(s)})'>Düzenle</button>
+                ${s.id !== 1 ? `<button class="btn btn-sm btn-danger" onclick="deleteStaff(${s.id})">Sil</button>` : ''}
+              </td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    `;
+  },
+  
+  emails() {
+    const logs = DB.get('email_log', []).slice().reverse();
+    return `
+      <p style="color:var(--text-light);margin-bottom:1rem">💡 Gerçek projede e-postalar SendGrid/Nodemailer gibi servislerle gönderilir. Burası simülasyon kayıtlarıdır.</p>
+      ${logs.length ? logs.map(l=>`
+        <div class="card" style="margin-bottom:.8rem">
+          <small style="color:var(--primary)">${new Date(l.sentAt).toLocaleString('tr-TR')}</small>
+          <h4 style="margin:.3rem 0">${l.subject}</h4>
+          <p><strong>Alıcı:</strong> ${l.to}</p>
+          <p style="white-space:pre-wrap;font-size:.9rem;color:var(--text-light);margin-top:.5rem">${l.body}</p>
+        </div>
+      `).join('') : '<p>Henüz e-posta gönderilmedi</p>'}
+    `;
+  }
+};
+
+function statusLabel(s){return {pending:'Bekliyor',confirmed:'Onaylı',completed:'Tamamlandı',cancelled:'İptal'}[s]||s}
+
+function renderAppTable(apps) {
+  if (!apps.length) return '<p style="padding:2rem;text-align:center;color:var(--text-light)">Randevu bulunamadı</p>';
+  return `<table class="data-table">
+    <thead><tr><th>Hasta</th><th>Hizmet</th><th>Doktor</th><th>Tarih/Saat</th><th>Durum</th><th>İşlem</th></tr></thead>
+    <tbody>${apps.map(a=>`
+      <tr>
+        <td><strong>${a.firstName} ${a.lastName}</strong><br><small>${a.phone}</small></td>
+        <td>${a.service}</td><td>${a.doctor || '-'}</td>
+        <td>${a.date} ${a.time}</td>
+        <td><span class="badge badge-${a.status}">${statusLabel(a.status)}</span></td>
+        <td>
+          <select onchange="changeStatus(${a.id},this.value)" style="padding:.3rem;border-radius:6px;border:1px solid var(--border)">
+            <option value="pending" ${a.status==='pending'?'selected':''}>Bekliyor</option>
+            <option value="confirmed" ${a.status==='confirmed'?'selected':''}>Onayla</option>
+            <option value="completed" ${a.status==='completed'?'selected':''}>Tamamla</option>
+            <option value="cancelled" ${a.status==='cancelled'?'selected':''}>İptal</option>
+          </select>
+          <button class="btn btn-sm btn-danger" onclick="deleteApp(${a.id})">Sil</button>
+        </td>
+      </tr>`).join('')}
+    </tbody></table>`;
+}
+
+function changeStatus(id, status) {
+  const apps = DB.get('appointments');
+  const a = apps.find(x=>x.id===id);
+  if (a) {
+    a.status = status; DB.set('appointments', apps);
+    simulateEmail(a.email, `Randevu Durumu: ${statusLabel(status)}`,
+      `Sayın ${a.firstName}, randevunuzun durumu "${statusLabel(status)}" olarak güncellendi.`);
+    toast('Durum güncellendi ve e-posta gönderildi');
+  }
+}
+function deleteApp(id) {
+  if (!confirm('Randevuyu silmek istediğinize emin misiniz?')) return;
+  DB.set('appointments', DB.get('appointments').filter(a=>a.id!==id));
+  toast('Randevu silindi');
+  loadView(currentView);
+}
+
+// DOKTOR
+function editDoctor(d) {
+  const isEdit = !!d;
+  document.getElementById('modalContent').innerHTML = `
+    <h3>${isEdit?'Doktor Düzenle':'Yeni Doktor'}</h3>
+    <form id="docForm">
+      <div class="form-group"><label>Ad Soyad</label><input name="name" required value="${d?.name||''}"></div>
+      <div class="form-group"><label>Branş</label><input name="branch" required value="${d?.branch||''}"></div>
+      <div class="form-group"><label>Telefon</label><input name="phone" required value="${d?.phone||''}"></div>
+      <div class="form-group"><label>E-posta</label><input name="email" type="email" required value="${d?.email||''}"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" onclick="closeModal()">İptal</button>
+        <button type="submit" class="btn btn-primary">Kaydet</button>
+      </div>
+    </form>
+  `;
+  document.getElementById('modal').classList.add('open');
+  document.getElementById('docForm').onsubmit = e => {
+    e.preventDefault();
+    const data = Object.fromEntries(new FormData(e.target).entries());
+    const docs = DB.get('doctors');
+    if (isEdit) {
+      const i = docs.findIndex(x=>x.id===d.id); docs[i] = {...d, ...data};
+    } else {
+      docs.push({id:Date.now(), ...data});
+    }
+    DB.set('doctors', docs); toast('Kaydedildi'); closeModal(); loadView('doctors');
+  };
+}
+function deleteDoctor(id) {
+  if (!confirm('Doktoru silmek istiyor musunuz?')) return;
+  DB.set('doctors', DB.get('doctors').filter(d=>d.id!==id));
+  toast('Doktor silindi'); loadView('doctors');
+}
+
+// HİZMET
+function addService() {
+  const v = document.getElementById('newSvc').value.trim();
+  if (!v) return;
+  const s = DB.get('services'); s.push(v); DB.set('services', s);
+  toast('Hizmet eklendi'); loadView('services');
+}
+function deleteService(i) {
+  const s = DB.get('services'); s.splice(i,1); DB.set('services', s);
+  toast('Silindi'); loadView('services');
+}
+
+// PERSONEL
+function editStaff(s) {
+  const isEdit = !!s;
+  document.getElementById('modalContent').innerHTML = `
+    <h3>${isEdit?'Personel Düzenle':'Yeni Personel'}</h3>
+    <form id="staffForm">
+      <div class="form-group"><label>Ad Soyad</label><input name="name" required value="${s?.name||''}"></div>
+      <div class="form-group"><label>E-posta</label><input name="email" type="email" required value="${s?.email||''}"></div>
+      <div class="form-group"><label>Şifre</label><input name="password" required value="${s?.password||''}"></div>
+      <div class="form-group"><label>Rol</label>
+        <select name="role">
+          <option value="staff" ${s?.role==='staff'?'selected':''}>Personel</option>
+          <option value="admin" ${s?.role==='admin'?'selected':''}>Admin</option>
+        </select>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" onclick="closeModal()">İptal</button>
+        <button type="submit" class="btn btn-primary">Kaydet</button>
+      </div>
+    </form>
+  `;
+  document.getElementById('modal').classList.add('open');
+  document.getElementById('staffForm').onsubmit = e => {
+    e.preventDefault();
+    const data = Object.fromEntries(new FormData(e.target).entries());
+    const arr = DB.get('staff');
+    if (isEdit) { const i = arr.findIndex(x=>x.id===s.id); arr[i] = {...s, ...data}; }
+    else arr.push({id:Date.now(), ...data});
+    DB.set('staff', arr); toast('Kaydedildi'); closeModal(); loadView('staff');
+  };
+}
+function deleteStaff(id) {
+  if (!confirm('Silmek istiyor musunuz?')) return;
+  DB.set('staff', DB.get('staff').filter(s=>s.id!==id));
+  toast('Silindi'); loadView('staff');
+}
+
+function closeModal(){document.getElementById('modal').classList.remove('open')}
+
+let currentView = 'dashboard';
+function loadView(v) {
+  currentView = v;
+  document.getElementById('pageTitle').textContent = {
+    dashboard:'Admin Dashboard',appointments:'Tüm Randevular',doctors:'Doktor Yönetimi',
+    services:'Hizmet Yönetimi',staff:'Personel Yönetimi',emails:'E-posta Kayıtları'
+  }[v];
+  document.getElementById('viewArea').innerHTML = views[v]();
+  document.querySelectorAll('.sidebar-menu a[data-view]').forEach(a=>{
+    a.classList.toggle('active', a.dataset.view === v);
+  });
+  
+  if (v === 'appointments') {
+    document.getElementById('searchApp').oninput = e => {
+      const q = e.target.value.toLowerCase();
+      const filtered = DB.get('appointments').filter(a =>
+        `${a.firstName} ${a.lastName} ${a.email} ${a.phone} ${a.service}`.toLowerCase().includes(q)
+      );
+      document.getElementById('appsList').innerHTML = renderAppTable(filtered);
+    };
+  }
+}
+
+document.querySelectorAll('.sidebar-menu a[data-view]').forEach(a=>{
+  a.onclick = e => { e.preventDefault(); loadView(a.dataset.view); };
+});
+loadView('dashboard');
+</script>
+</body></html>
