@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="tr"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Personel Paneli - Zeus</title>
+<link rel="stylesheet" href="style.css"></head><body>
+
+<div class="panel-wrapper">
+  <aside class="sidebar">
+    <div class="logo"><div class="logo-icon">⚡</div><div class="logo-text">ZEUS<br><small style="font-size:.7rem">Personel</small></div></div>
+    <ul class="sidebar-menu">
+      <li><a href="#" class="active" data-view="dashboard">📊 Dashboard</a></li>
+      <li><a href="#" data-view="appointments">📅 Randevular</a></li>
+      <li><a href="#" data-view="new">➕ Yeni Randevu</a></li>
+      <li><a href="#" data-view="patients">👥 Hastalar</a></li>
+      <li><a href="#" data-view="doctors">🩺 Doktorlar</a></li>
+      <li><a href="#" onclick="logout();return false">🚪 Çıkış</a></li>
+    </ul>
+  </aside>
+  
+  <main class="main-content">
+    <header class="main-header">
+      <h1 id="pageTitle">Dashboard</h1>
+      <div style="display:flex;gap:1rem;align-items:center">
+        <div class="notif-bell" onclick="toggleNotif()">🔔<span class="notif-count" id="notifCount">0</span>
+          <div class="notif-dropdown" id="notifDropdown"></div>
+        </div>
+        <div><strong id="userName"></strong><br><small style="color:var(--text-light)" id="userRole"></small></div>
+      </div>
+    </header>
+    
+    <div id="viewArea"></div>
+  </main>
+</div>
+
+<div class="modal-bg" id="modal"><div class="modal" id="modalContent"></div></div>
+
+<script src="script.js"></script>
+<script>
+const user = requireAuth();
+if (user) {
+  document.getElementById('userName').textContent = user.name;
+  document.getElementById('userRole').textContent = user.role === 'admin' ? 'Admin' : 'Personel';
+}
+
+// BİLDİRİMLER
+function loadNotifs() {
+  const n = DB.get('notifications').filter(x => !x.read).reverse();
+  document.getElementById('notifCount').textContent = n.length;
+  document.getElementById('notifCount').style.display = n.length ? 'flex' : 'none';
+  const dd = document.getElementById('notifDropdown');
+  dd.innerHTML = n.length ? n.map(x => `
+    <div class="notif-item">
+      <h5>${x.title}</h5>
+      <p>${x.message}</p>
+      <div class="time">${new Date(x.createdAt).toLocaleString('tr-TR')}</div>
+    </div>`).join('') : '<div class="notif-item"><p>Yeni bildirim yok</p></div>';
+}
+function toggleNotif() {
+  const dd = document.getElementById('notifDropdown');
+  dd.classList.toggle('open');
+  if (dd.classList.contains('open')) {
+    // Okundu işaretle
+    const notifs = DB.get('notifications');
+    notifs.forEach(n => n.read = true);
+    DB.set('notifications', notifs);
+    setTimeout(() => document.getElementById('notifCount').style.display='none', 1500);
+  }
+}
+loadNotifs();
+setInterval(loadNotifs, 5000); // 5 sn'de bir bildirim kontrol
+
+// VIEWS
+const views = {
+  dashboard() {
+    const apps = DB.get('appointments');
+    const today = new Date().toISOString().split('T')[0];
+    const todayApps = apps.filter(a => a.date === today);
+    const pending = apps.filter(a => a.status === 'pending').length;
+    return `
+      <div class="stat-grid">
+        <div class="stat-card"><h3>Toplam Randevu</h3><div class="big">${apps.length}</div></div>
+        <div class="stat-card" style="border-color:var(--accent)"><h3>Bugün</h3><div class="big">${todayApps.length}</div></div>
+        <div class="stat-card" style="border-color:var(--danger)"><h3>Bekleyen Onay</h3><div class="big">${pending}</div></div>
+        <div class="stat-card" style="border-color:var(--success)"><h3>Hasta Sayısı</h3><div class="big">${new Set(apps.map(a=>a.email)).size}</div></div>
+      </div>
+      <h3 style="margin-bottom:1rem">Bugünün Randevuları</h3>
+      ${renderAppTable(todayApps.sort((a,b)=>a.time.localeCompare(b.time)))}
+    `;
+  },
+  appointments() {
+    const apps = DB.get('appointments').sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
+    return `
+      <div style="display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap">
+        <button class="btn btn-sm btn-outline" onclick="filterApps('all')">Tümü</button>
+        <button class="btn btn-sm btn-outline" onclick="filterApps('pending')">Bekleyen</button>
+        <button class="btn btn-sm btn-outline" onclick="filterApps('confirmed')">Onaylı</button>
+        <button class="btn btn-sm btn-outline" onclick="filterApps('completed')">Tamamlandı</button>
+      </div>
+      <div id="appsList">${renderAppTable(apps)}</div>
+    `;
+  },
+  new() {
+    const svc = DB.get('services').map(s=>`<option>${s}</option>`).join('');
+    const docs = DB.get('doctors').map(d=>`<option value="${d.name}">${d.name} - ${d.branch}</option>`).join('');
+    return `
+      <div class="form-box" style="max-width:700px">
+        <form id="newAppForm">
+          <div class="form-row">
+            <div class="form-group"><label>Ad</label><input name="firstName" required></div>
+            <div class="form-group"><label>Soyad</label><input name="lastName" required></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Telefon</label><input name="phone" type="tel" required></div>
+            <div class="form-group"><label>E-posta</label><input name="email" type="email" required></div>
+          </div>
+          <div class="form-group"><label>Hizmet</label><select name="service" required><option value="">Seçiniz</option>${svc}</select></div>
+          <div class="form-group"><label>Doktor</label><select name="doctor"><option value="">Farketmez</option>${docs}</select></div>
+          <div class="form-row">
+            <div class="form-group"><label>Tarih</label><input name="date" type="date" min="${new Date().toISOString().split('T')[0]}" required></div>
+            <div class="form-group"><label>Saat</label><input name="time" type="time" required></div>
+          </div>
+          <div class="form-group"><label>Not</label><textarea name="note" rows="2"></textarea></div>
+          <button class="btn btn-primary" type="submit">Randevuyu Kaydet</button>
+        </form>
+      </div>
+    `;
+  },
+  patients() {
+    const apps = DB.get('appointments');
+    const patientMap = {};
+    apps.forEach(a => {
+      const key = a.email;
+      if (!patientMap[key]) patientMap[key] = {name:`${a.firstName} ${a.lastName}`, phone:a.phone, email:a.email, count:0, last:''};
+      patientMap[key].count++;
+      if (a.date > patientMap[key].last) patientMap[key].last = a.date;
+    });
+    const patients = Object.values(patientMap);
+    return `
+      <table class="data-table">
+        <thead><tr><th>Hasta</th><th>Telefon</th><th>E-posta</th><th>Randevu Sayısı</th><th>Son Randevu</th></tr></thead>
+        <tbody>
+          ${patients.length ? patients.map(p=>`
+            <tr><td><strong>${p.name}</strong></td><td>${p.phone}</td><td>${p.email}</td><td>${p.count}</td><td>${p.last || '-'}</td></tr>
+          `).join('') : '<tr><td colspan="5" style="text-align:center;padding:2rem">Henüz hasta yok</td></tr>'}
+        </tbody>
+      </table>
+    `;
+  },
+  doctors() {
+    const docs = DB.get('doctors');
+    return `
+      <div class="grid-3">
+        ${docs.map(d=>`
+          <div class="card">
+            <div class="card-icon">🩺</div>
+            <h3>${d.name}</h3>
+            <p><strong>Branş:</strong> ${d.branch}</p>
+            <p style="font-size:.85rem">📞 ${d.phone}<br>✉️ ${d.email}</p>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+};
+
+function renderAppTable(apps) {
+  if (!apps.length) return '<p style="padding:2rem;text-align:center;color:var(--text-light)">Randevu bulunamadı</p>';
+  return `
+    <table class="data-table">
+      <thead><tr><th>Hasta</th><th>Hizmet</th><th>Doktor</th><th>Tarih</th><th>Saat</th><th>Durum</th><th>İşlem</th></tr></thead>
+      <tbody>
+        ${apps.map(a=>`
+          <tr>
+            <td><strong>${a.firstName} ${a.lastName}</strong><br><small>${a.phone}</small></td>
+            <td>${a.service}</td>
+            <td>${a.doctor || '-'}</td>
+            <td>${a.date}</td>
+            <td>${a.time}</td>
+            <td><span class="badge badge-${a.status}">${statusLabel(a.status)}</span></td>
+            <td>
+              <button class="btn btn-sm btn-outline" onclick="viewApp(${a.id})">Detay</button>
+            </td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+function statusLabel(s){return {pending:'Bekliyor',confirmed:'Onaylı',completed:'Tamamlandı',cancelled:'İptal'}[s]||s}
+
+function filterApps(status) {
+  const apps = DB.get('appointments').sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
+  const filtered = status === 'all' ? apps : apps.filter(a=>a.status===status);
+  document.getElementById('appsList').innerHTML = renderAppTable(filtered);
+}
+
+function viewApp(id) {
+  const a = DB.get('appointments').find(x=>x.id===id);
+  if (!a) return;
+  document.getElementById('modalContent').innerHTML = `
+    <h3>Randevu Detayı</h3>
+    <p><strong>Hasta:</strong> ${a.firstName} ${a.lastName}</p>
+    <p><strong>Telefon:</strong> ${a.phone}</p>
+    <p><strong>E-posta:</strong> ${a.email}</p>
+    <p><strong>Hizmet:</strong> ${a.service}</p>
+    <p><strong>Doktor:</strong> ${a.doctor || 'Belirtilmemiş'}</p>
+    <p><strong>Tarih/Saat:</strong> ${a.date} ${a.time}</p>
+    <p><strong>Not:</strong> ${a.note || '-'}</p>
+    <p><strong>Durum:</strong> <span class="badge badge-${a.status}">${statusLabel(a.status)}</span></p>
+    <div class="modal-actions">
+      <button class="btn btn-sm btn-primary" onclick="changeStatus(${a.id},'confirmed')">Onayla</button>
+      <button class="btn btn-sm btn-accent" onclick="changeStatus(${a.id},'completed')">Tamamla</button>
+      <button class="btn btn-sm btn-danger" onclick="changeStatus(${a.id},'cancelled')">İptal</button>
+      <button class="btn btn-sm btn-outline" onclick="closeModal()">Kapat</button>
+    </div>
+  `;
+  document.getElementById('modal').classList.add('open');
+}
+function changeStatus(id, status) {
+  const apps = DB.get('appointments');
+  const a = apps.find(x=>x.id===id);
+  if (a) {
+    a.status = status;
+    DB.set('appointments', apps);
+    simulateEmail(a.email, `Randevu ${statusLabel(status)}`, 
+      `Sayın ${a.firstName}, ${a.date} ${a.time} randevunuzun durumu "${statusLabel(status)}" olarak güncellendi.`);
+    toast('Durum güncellendi, hastaya e-posta gönderildi.');
+  }
+  closeModal();
+  loadView(currentView);
+}
+function closeModal(){document.getElementById('modal').classList.remove('open')}
+
+let currentView = 'dashboard';
+function loadView(v) {
+  currentView = v;
+  document.getElementById('pageTitle').textContent = {
+    dashboard:'Dashboard',appointments:'Tüm Randevular',new:'Yeni Randevu',patients:'Hastalar',doctors:'Doktorlar'
+  }[v];
+  document.getElementById('viewArea').innerHTML = views[v]();
+  document.querySelectorAll('.sidebar-menu a').forEach(a=>{
+    a.classList.toggle('active', a.dataset.view === v);
+  });
+  
+  if (v === 'new') {
+    document.getElementById('newAppForm').onsubmit = e => {
+      e.preventDefault();
+      const data = Object.fromEntries(new FormData(e.target).entries());
+      createAppointment(data);
+      toast('Randevu oluşturuldu, hastaya e-posta gönderildi.');
+      loadView('appointments');
+    };
+  }
+}
+
+document.querySelectorAll('.sidebar-menu a[data-view]').forEach(a=>{
+  a.onclick = e => { e.preventDefault(); loadView(a.dataset.view); };
+});
+loadView('dashboard');
+</script>
+</body></html>
