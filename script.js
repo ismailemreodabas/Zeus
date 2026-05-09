@@ -1,29 +1,25 @@
-/* Zeus Diş Kliniği - Gerçek Bildirim Sistemi */
+/* Zeus Diş Kliniği - Ortak JS (TEMİZ VERSİYON) */
 
 // ============================================
-// 🔧 AYAR PANELİ - BURAYA KENDİ BİLGİLERİNİZİ YAZIN
+// 🔧 AYAR PANELİ
 // ============================================
 const CONFIG = {
-  // Admin bilgileri
   ADMIN_EMAIL: 'ismailemreodabas@gmail.com',
-  ADMIN_PHONE: '905510708862', // başında 90 olmalı, 0 olmadan
+  ADMIN_PHONE: '905510708862',
   ADMIN_NAME: 'İsmail Emre Odabaş',
   
-  // EmailJS Ayarları (emailjs.com'dan alın)
-  EMAILJS_PUBLIC_KEY: 'BURAYA_PUBLIC_KEY_YAZIN',  // örn: 'aBcDeFgH123'
-  EMAILJS_SERVICE_ID: 'BURAYA_SERVICE_ID_YAZIN',  // örn: 'service_abc123'
-  EMAILJS_TEMPLATE_ADMIN: 'BURAYA_TEMPLATE_ID_YAZIN', // admin'e gelen mail
-  EMAILJS_TEMPLATE_PATIENT: 'BURAYA_TEMPLATE_ID_YAZIN', // hastaya gelen mail (opsiyonel - aynısını kullanabilirsiniz)
+  EMAILJS_PUBLIC_KEY: 'BURAYA_PUBLIC_KEY_YAZIN',
+  EMAILJS_SERVICE_ID: 'BURAYA_SERVICE_ID_YAZIN',
+  EMAILJS_TEMPLATE_ADMIN: 'BURAYA_TEMPLATE_ID_YAZIN',
+  EMAILJS_TEMPLATE_PATIENT: 'BURAYA_TEMPLATE_ID_YAZIN',
   
-  // CallMeBot WhatsApp (callmebot.com'dan alın)
-  WHATSAPP_API_KEY: 'BURAYA_WHATSAPP_KEY_YAZIN', // örn: '1234567'
+  WHATSAPP_API_KEY: 'BURAYA_WHATSAPP_KEY_YAZIN',
   
-  // Aktif/Pasif
   ENABLE_EMAIL: true,
   ENABLE_WHATSAPP: true,
 };
 
-// EmailJS SDK'sını yükle
+// ========= EMAILJS YÜKLE =========
 (function loadEmailJS(){
   if (window.emailjs) return;
   const s = document.createElement('script');
@@ -38,11 +34,15 @@ const CONFIG = {
 
 // ========= VERİ KATMANI =========
 const DB = {
-  get(key, def=[]) { try{return JSON.parse(localStorage.getItem('zeus_'+key))??def}catch(e){return def} },
-  set(key, val) { localStorage.setItem('zeus_'+key, JSON.stringify(val)) },
-  push(key, item) { const arr = this.get(key); arr.push(item); this.set(key,arr); return item }
+  get(key, def=[]) { 
+    try { return JSON.parse(localStorage.getItem('zeus_'+key)) ?? def; } 
+    catch(e) { return def; } 
+  },
+  set(key, val) { localStorage.setItem('zeus_'+key, JSON.stringify(val)); },
+  push(key, item) { const arr = this.get(key); arr.push(item); this.set(key, arr); return item; }
 };
 
+// ========= BAŞLANGIÇ VERİLERİ =========
 function initDB() {
   if (!localStorage.getItem('zeus_init')) {
     DB.set('doctors', [
@@ -53,7 +53,8 @@ function initDB() {
     ]);
     DB.set('staff', [
       {id:1, name:'İsmail Emre Odabaş', email:'ismailemreodabas@gmail.com', password:'admin123', role:'admin'},
-      {id:2, name:'Ayşe Sekreter', email:'ayse@zeus.com', password:'1234', role:'staff'}
+      {id:2, name:'Admin', email:'admin@zeus.com', password:'admin123', role:'admin'},
+      {id:3, name:'Ayşe Sekreter', email:'ayse@zeus.com', password:'1234', role:'staff'}
     ]);
     DB.set('services', [
       {name:'İmplant Tedavisi', price:15000, duration:60},
@@ -69,7 +70,7 @@ function initDB() {
     DB.set('messages', []);
     localStorage.setItem('zeus_init','1');
   }
-  // Migration: eski services formatı string ise çevir
+  // Eski format düzelt
   const svc = DB.get('services');
   if (svc.length && typeof svc[0] === 'string') {
     DB.set('services', svc.map(s => ({name:s, price:1000, duration:30})));
@@ -77,15 +78,14 @@ function initDB() {
 }
 initDB();
 
-// ========= GERÇEK E-POSTA GÖNDERME =========
+// ========= E-POSTA GÖNDER =========
 async function sendRealEmail(templateId, params) {
   if (!CONFIG.ENABLE_EMAIL || CONFIG.EMAILJS_PUBLIC_KEY.includes('BURAYA')) {
-    console.warn('⚠️ EmailJS ayarlanmamış, e-posta gönderilmedi');
+    console.warn('⚠️ EmailJS ayarlanmamış');
     logEmail(params.to_email, params.subject || 'Test', JSON.stringify(params), 'SIMULATED');
     return false;
   }
   if (!window.emailjs) {
-    console.warn('⚠️ EmailJS yüklenmedi, 1 sn bekleniyor...');
     await new Promise(r => setTimeout(r, 1500));
   }
   try {
@@ -95,7 +95,7 @@ async function sendRealEmail(templateId, params) {
     return true;
   } catch (err) {
     console.error('❌ E-posta hatası:', err);
-    logEmail(params.to_email || CONFIG.ADMIN_EMAIL, params.subject || 'Bildirim', JSON.stringify(params), 'FAILED: '+err.text);
+    logEmail(params.to_email || CONFIG.ADMIN_EMAIL, params.subject || 'Bildirim', JSON.stringify(params), 'FAILED');
     return false;
   }
 }
@@ -106,7 +106,7 @@ function logEmail(to, subject, body, status) {
   DB.set('email_log', logs);
 }
 
-// ========= GERÇEK WHATSAPP GÖNDERME (CallMeBot) =========
+// ========= WHATSAPP GÖNDER =========
 async function sendWhatsApp(phone, message) {
   if (!CONFIG.ENABLE_WHATSAPP || CONFIG.WHATSAPP_API_KEY.includes('BURAYA')) {
     console.warn('⚠️ CallMeBot ayarlanmamış');
@@ -115,14 +115,13 @@ async function sendWhatsApp(phone, message) {
   }
   const url = `https://api.callmebot.com/whatsapp.php?phone=${phone}&text=${encodeURIComponent(message)}&apikey=${CONFIG.WHATSAPP_API_KEY}`;
   try {
-    // CallMeBot CORS hatası verebilir, o yüzden no-cors mod
     await fetch(url, { mode: 'no-cors' });
     console.log('✅ WhatsApp gönderildi:', phone);
     logWhatsApp(phone, message, 'SENT');
     return true;
   } catch (err) {
     console.error('❌ WhatsApp hatası:', err);
-    logWhatsApp(phone, message, 'FAILED: '+err.message);
+    logWhatsApp(phone, message, 'FAILED');
     return false;
   }
 }
@@ -133,7 +132,7 @@ function logWhatsApp(to, message, status) {
   DB.set('whatsapp_log', logs);
 }
 
-// ========= RANDEVU OLUŞTURMA + TÜM BİLDİRİMLER =========
+// ========= RANDEVU OLUŞTUR =========
 async function createAppointment(data) {
   const app = {
     id: Date.now(),
@@ -143,7 +142,6 @@ async function createAppointment(data) {
   };
   DB.push('appointments', app);
   
-  // Panel bildirimi
   DB.push('notifications', {
     id: Date.now(),
     type: 'new_appointment',
@@ -154,12 +152,10 @@ async function createAppointment(data) {
     createdAt: new Date().toISOString()
   });
   
-  // Tarayıcı bildirimi
   sendBrowserNotification('🔔 Yeni Randevu Talebi', 
     `${data.firstName} ${data.lastName} - ${data.date} ${data.time}`);
   
-  // 📧 ADMIN'E E-POSTA
-  const adminEmailParams = {
+  sendRealEmail(CONFIG.EMAILJS_TEMPLATE_ADMIN, {
     to_email: CONFIG.ADMIN_EMAIL,
     to_name: CONFIG.ADMIN_NAME,
     subject: `🦷 Yeni Randevu: ${data.firstName} ${data.lastName}`,
@@ -172,10 +168,8 @@ async function createAppointment(data) {
     time: data.time,
     note: data.note || 'Not yok',
     created_at: new Date().toLocaleString('tr-TR')
-  };
-  sendRealEmail(CONFIG.EMAILJS_TEMPLATE_ADMIN, adminEmailParams);
+  });
   
-  // 💬 ADMIN'E WHATSAPP
   const whatsappMsg = 
 `🦷 *ZEUS - Yeni Randevu*
 
@@ -185,12 +179,9 @@ async function createAppointment(data) {
 💎 *Hizmet:* ${data.service}
 🩺 *Doktor:* ${data.doctor || 'Farketmez'}
 📅 *Tarih:* ${data.date} ${data.time}
-📝 *Not:* ${data.note || '-'}
-
-_Panel: admin.html_`;
+📝 *Not:* ${data.note || '-'}`;
   sendWhatsApp(CONFIG.ADMIN_PHONE, whatsappMsg);
   
-  // 📧 HASTAYA ONAY E-POSTASI
   if (CONFIG.EMAILJS_TEMPLATE_PATIENT && !CONFIG.EMAILJS_TEMPLATE_PATIENT.includes('BURAYA')) {
     sendRealEmail(CONFIG.EMAILJS_TEMPLATE_PATIENT, {
       to_email: data.email,
@@ -208,7 +199,7 @@ _Panel: admin.html_`;
   return app;
 }
 
-// ========= RANDEVU DURUM GÜNCELLEME + BİLDİRİM =========
+// ========= RANDEVU DURUMU GÜNCELLE =========
 async function updateAppointmentStatus(id, newStatus) {
   const apps = DB.get('appointments');
   const a = apps.find(x => x.id === id);
@@ -216,9 +207,13 @@ async function updateAppointmentStatus(id, newStatus) {
   a.status = newStatus;
   DB.set('appointments', apps);
   
-  const statusLabels = {confirmed:'onaylandı ✅', completed:'tamamlandı 🎉', cancelled:'iptal edildi ❌', pending:'bekleniyor ⏳'};
+  const statusLabels = {
+    confirmed:'onaylandı ✅', 
+    completed:'tamamlandı 🎉', 
+    cancelled:'iptal edildi ❌', 
+    pending:'bekleniyor ⏳'
+  };
   
-  // Hastaya e-posta
   if (CONFIG.EMAILJS_TEMPLATE_PATIENT && !CONFIG.EMAILJS_TEMPLATE_PATIENT.includes('BURAYA')) {
     sendRealEmail(CONFIG.EMAILJS_TEMPLATE_PATIENT, {
       to_email: a.email,
@@ -233,15 +228,6 @@ async function updateAppointmentStatus(id, newStatus) {
     });
   }
   
-  // Hastaya WhatsApp (telefon numarası varsa)
-  if (a.phone) {
-    const cleanPhone = a.phone.replace(/\D/g,'');
-    const phoneWithCountry = cleanPhone.startsWith('9') ? cleanPhone : '9'+cleanPhone;
-    // Hastaya WhatsApp - fakat CallMeBot sadece onay verilen numaralara gönderir!
-    // Onun yerine wa.me link üreteceğiz (admin manuel tıklar)
-    console.log('Hasta WhatsApp link:', `https://wa.me/${phoneWithCountry}`);
-  }
-  
   return a;
 }
 
@@ -249,7 +235,7 @@ async function updateAppointmentStatus(id, newStatus) {
 function sendBrowserNotification(title, body) {
   if (!('Notification' in window)) return;
   if (Notification.permission === 'granted') {
-    new Notification(title, { body, icon: '' });
+    new Notification(title, { body });
   } else if (Notification.permission !== 'denied') {
     Notification.requestPermission().then(p => {
       if (p === 'granted') new Notification(title, { body });
@@ -257,7 +243,7 @@ function sendBrowserNotification(title, body) {
   }
 }
 
-// ========= HATIRLATMA KONTROLÜ =========
+// ========= HATIRLATMA =========
 function checkUpcomingAppointments() {
   const apps = DB.get('appointments');
   const now = new Date();
@@ -272,7 +258,6 @@ function checkUpcomingAppointments() {
       sendBrowserNotification('⏰ Randevu Hatırlatması',
         `${app.firstName} ${app.lastName} - 30 dk sonra!`);
       
-      // Admin'e WhatsApp
       sendWhatsApp(CONFIG.ADMIN_PHONE,
         `⏰ *HATIRLATMA*\n${app.firstName} ${app.lastName} randevusu 30 dk sonra\n📅 ${app.date} ${app.time}\n💎 ${app.service}`);
       
@@ -285,16 +270,31 @@ setInterval(checkUpcomingAppointments, 60000);
 
 // ========= OTURUM =========
 function login(email, password) {
-  const staff = DB.get('staff').find(s => s.email===email && s.password===password);
-  if (staff) { sessionStorage.setItem('zeus_session', JSON.stringify(staff)); return staff; }
+  const staff = DB.get('staff').find(s => s.email === email && s.password === password);
+  if (staff) { 
+    sessionStorage.setItem('zeus_session', JSON.stringify(staff)); 
+    return staff; 
+  }
   return null;
 }
-function currentUser() { try{return JSON.parse(sessionStorage.getItem('zeus_session'))}catch(e){return null} }
-function logout() { sessionStorage.removeItem('zeus_session'); window.location.href='giris.html'; }
+
+function currentUser() { 
+  try { return JSON.parse(sessionStorage.getItem('zeus_session')); } 
+  catch(e) { return null; } 
+}
+
+function logout() { 
+  sessionStorage.removeItem('zeus_session'); 
+  window.location.href = 'giris.html'; 
+}
+
 function requireAuth(role) {
   const u = currentUser();
-  if (!u) { window.location.href='giris.html'; return null; }
-  if (role && u.role !== role && u.role !== 'admin') { window.location.href='panel.html'; return null; }
+  if (!u) { window.location.href = 'giris.html'; return null; }
+  if (role && u.role !== role && u.role !== 'admin') { 
+    window.location.href = 'panel.html'; 
+    return null; 
+  }
   return u;
 }
 
@@ -307,11 +307,12 @@ function toast(msg, isError=false) {
   setTimeout(() => t.remove(), 3500);
 }
 
-// ========= MOBİL MENÜ =========
+// ========= MOBİL MENÜ + BİLDİRİM İZNİ =========
 document.addEventListener('DOMContentLoaded', () => {
   const toggle = document.querySelector('.menu-toggle');
   const links = document.querySelector('.nav-links');
   if (toggle && links) toggle.onclick = () => links.classList.toggle('open');
+  
   if ('Notification' in window && Notification.permission === 'default') {
     setTimeout(() => Notification.requestPermission(), 2000);
   }
@@ -327,15 +328,21 @@ function renderFooter() {
         <p style="margin-top:1rem;font-size:.9rem">Sağlıklı ve güzel gülüşler için Zeus Diş Kliniği yanınızda.</p>
       </div>
       <div><h4>Hizmetler</h4><ul>
-        <li><a href="hizmetler.html">İmplant</a></li><li><a href="hizmetler.html">Beyazlatma</a></li>
-        <li><a href="hizmetler.html">Porselen</a></li><li><a href="hizmetler.html">Ortodonti</a></li>
+        <li><a href="hizmetler.html">İmplant</a></li>
+        <li><a href="hizmetler.html">Beyazlatma</a></li>
+        <li><a href="hizmetler.html">Porselen</a></li>
+        <li><a href="hizmetler.html">Ortodonti</a></li>
       </ul></div>
       <div><h4>Hızlı Linkler</h4><ul>
-        <li><a href="index.html">Anasayfa</a></li><li><a href="hakkimizda.html">Hakkımızda</a></li>
-        <li><a href="randevu.html">Randevu Al</a></li><li><a href="iletisim.html">İletişim</a></li>
+        <li><a href="index.html">Anasayfa</a></li>
+        <li><a href="hakkimizda.html">Hakkımızda</a></li>
+        <li><a href="randevu.html">Randevu Al</a></li>
+        <li><a href="iletisim.html">İletişim</a></li>
       </ul></div>
       <div><h4>İletişim</h4><ul>
-        <li>📍 Kadıköy, İstanbul</li><li>📞 +90 212 555 00 00</li><li>✉️ info@zeusdis.com</li>
+        <li>📍 Kadıköy, İstanbul</li>
+        <li>📞 +90 212 555 00 00</li>
+        <li>✉️ info@zeusdis.com</li>
       </ul></div>
     </div>
     <div class="footer-bottom">© 2025 Zeus Diş Kliniği. Tüm hakları saklıdır.</div>
